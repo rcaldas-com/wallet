@@ -1,8 +1,8 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   output: 'standalone',
-  // Only assetPrefix to ensure CSS/JS have /wallet prefix
-  assetPrefix: '/wallet',
+  // Only use assetPrefix in development (when running behind nginx proxy)
+  assetPrefix: process.env.NODE_ENV === 'production' ? '' : '/wallet',
 };
 
 module.exports = nextConfig;
