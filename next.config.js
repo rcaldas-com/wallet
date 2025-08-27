@@ -1,9 +1,8 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   output: 'standalone',
-  basePath: process.env.NODE_ENV === 'production' ? '' : '/wallet',
-  // Disable useFileSystemPublicRoutes in production for better security
-  useFileSystemPublicRoutes: process.env.NODE_ENV !== 'production',
+  // Only assetPrefix to ensure CSS/JS have /wallet prefix
+  assetPrefix: '/wallet',
 };
 
 module.exports = nextConfig;
