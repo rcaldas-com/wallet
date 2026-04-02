@@ -1,8 +1,14 @@
 /** @type {import('next').NextConfig} */
+const isDev = process.env.NODE_ENV !== 'production';
+
 const nextConfig = {
   output: 'standalone',
-  // Only use assetPrefix in development (when running behind nginx proxy)
-  assetPrefix: process.env.NODE_ENV === 'production' ? '' : '/wallet',
+  ...(isDev ? { basePath: '/wallet' } : {}),
+  experimental: {
+    serverActions: {
+      bodySizeLimit: '10mb',
+    },
+  },
 };
 
 module.exports = nextConfig;

@@ -1,7 +1,2 @@
-import type { NextConfig } from "next";
-
-const nextConfig: NextConfig = {
-  /* config options here */
-};
-
-export default nextConfig;
+// Config is in next.config.js (js takes precedence over ts in Next.js)
+export default {};
