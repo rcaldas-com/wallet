@@ -28,6 +28,10 @@ const HOME_DOMAIN = process.env.STELLAR_HOME_DOMAIN || 'rcaldas.com';
 const INITIAL_BALANCE = process.env.STELLAR_INITIAL_BALANCE || '10';
 // Recarga de XLM enviada quando uma conta fica sem reserva para novas trustlines.
 const RESERVE_TOPUP = process.env.STELLAR_RESERVE_TOPUP || '3';
+// XLM sempre reservado para operações (reserva de conta, trustlines, taxas)
+// nas wallets custodiadas ('main') — não é saldo disponível ao usuário.
+// Único lugar a alterar para mudar esse valor em todo o app.
+const XLM_OPERATIONAL_RESERVE = Number(process.env.STELLAR_XLM_RESERVE || '20');
 
 export function getServer(): Horizon.Server {
   return new Horizon.Server(HORIZON_URL);
@@ -494,4 +498,19 @@ export async function getAccountBalances(publicKey: string): Promise<RawBalance[
     console.error(`Erro ao ler saldos de ${publicKey}:`, err);
     return [];
   }
+}
+
+// Remove o XLM reservado para operações do saldo de uma wallet CUSTODIADA
+// ('main') — reserva de conta, trustlines e taxas não são saldo disponível.
+// Só se aplica a wallets 'main' (ver app/lib/wallets.ts); uma wallet 'stellar'
+// (chave pública cadastrada pelo próprio usuário) mostra o XLM real, sem
+// desconto, pois não é o app quem gerencia essa reserva.
+export function hideOperationalXlmReserve(balances: RawBalance[]): RawBalance[] {
+  return balances
+    .map((b) => {
+      if (b.coin !== 'XLM') return b;
+      const visible = b.balance - XLM_OPERATIONAL_RESERVE;
+      return { ...b, balance: visible > 0 ? visible : 0 };
+    })
+    .filter((b) => b.balance > 0);
 }

@@ -1,7 +1,7 @@
 import 'server-only';
 import { ObjectId } from 'mongodb';
 import clientPromise from './mongodb';
-import { getAccountBalances, type RawBalance } from './stellar';
+import { getAccountBalances, hideOperationalXlmReserve, type RawBalance } from './stellar';
 import { getBitcoinBalance } from './bitcoin';
 
 const CCXT_URL = process.env.CCXT_URL || 'http://ccxt:8000';
@@ -70,7 +70,11 @@ export async function readWallet(w: WalletDocLite): Promise<WalletRead> {
   const base = { key: w.key, type: w.type, userId: w.userId };
 
   if (STELLAR_TYPES.includes(w.type)) {
-    return { ...base, balances: await getAccountBalances(w.key), status: 'ok' };
+    const raw = await getAccountBalances(w.key);
+    // Só a wallet custodiada ('main') tem a reserva operacional escondida —
+    // uma wallet 'stellar' é uma chave externa do próprio usuário.
+    const balances = w.type === 'main' ? hideOperationalXlmReserve(raw) : raw;
+    return { ...base, balances, status: 'ok' };
   }
 
   if (w.type === 'bitcoin') {
