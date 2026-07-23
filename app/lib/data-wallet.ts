@@ -1,7 +1,7 @@
 import 'server-only';
 import { ObjectId } from 'mongodb';
 import clientPromise from './mongodb';
-import { Movement, PendingWithdraw, UserOption } from './definitions';
+import { FileAttachment, Movement, PendingWithdraw, UserOption } from './definitions';
 
 // Usuários para o seletor do admin (sem dados sensíveis).
 export async function listUsers(): Promise<UserOption[]> {
@@ -161,6 +161,7 @@ export async function completeWithdraw(params: {
   adminId: string;
   txHash: string;
   proof?: string;
+  proofFile?: FileAttachment | null;
 }): Promise<void> {
   const client = await clientPromise;
   await client.db().collection('withdraw').updateOne(
@@ -170,6 +171,7 @@ export async function completeWithdraw(params: {
         status: 'completed',
         txHash: params.txHash,
         proof: params.proof || null,
+        proofFile: params.proofFile || null,
         completedAt: new Date(),
         completedBy: new ObjectId(params.adminId),
       },
@@ -214,6 +216,7 @@ export async function recordDeposit(params: {
   amount: string;
   coin: string;
   desc?: string;
+  receiptFile?: FileAttachment | null;
 }): Promise<void> {
   const client = await clientPromise;
   await client.db().collection('deposit').insertOne({
@@ -221,6 +224,7 @@ export async function recordDeposit(params: {
     amount: params.amount,
     coin: params.coin,
     desc: params.desc || null,
+    receiptFile: params.receiptFile || null,
     timestamp: new Date(),
   });
 }
@@ -263,6 +267,8 @@ export async function getUserMovements(userId: string, limit = 100): Promise<Mov
       desc: d.desc ?? null,
       status: d.status ?? null,
       timestamp: d.timestamp ?? d._id.getTimestamp(),
+      fileUrl: (d.receiptFile as FileAttachment | null)?.url ?? null,
+      fileName: (d.receiptFile as FileAttachment | null)?.originalName ?? null,
     })),
     ...withdraws.map((w) => ({
       _id: w._id.toString(),
@@ -272,6 +278,8 @@ export async function getUserMovements(userId: string, limit = 100): Promise<Mov
       desc: w.desc ?? null,
       status: w.status ?? null,
       timestamp: w.timestamp ?? w._id.getTimestamp(),
+      fileUrl: (w.proofFile as FileAttachment | null)?.url ?? null,
+      fileName: (w.proofFile as FileAttachment | null)?.originalName ?? null,
     })),
   ];
 

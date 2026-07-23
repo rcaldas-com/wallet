@@ -13,6 +13,7 @@ import {
   getUserName,
 } from '@/app/lib/data-wallet';
 import { sendWithdrawRequestEmail, sendWithdrawProcessedEmail } from '@/app/lib/email';
+import { uploadReceiptFile } from '@/app/lib/file-upload';
 
 export type WithdrawState = {
   success: boolean;
@@ -131,7 +132,13 @@ export async function confirmWithdraw(
     return { success: false, message: result.error };
   }
 
-  await completeWithdraw({ id, adminId: admin._id, txHash: result.hash, proof });
+  const proofFileInput = formData.get('proofFile');
+  const { attachment: proofFile, error: uploadError } = await uploadReceiptFile(
+    proofFileInput instanceof File ? proofFileInput : null,
+    `withdraw-${id}`,
+  );
+
+  await completeWithdraw({ id, adminId: admin._id, txHash: result.hash, proof, proofFile });
 
   try {
     const user = await getUserName(userId);
@@ -145,6 +152,7 @@ export async function confirmWithdraw(
         destination: doc.destination || '',
         txHash: result.hash,
         proof,
+        proofFileUrl: proofFile?.url,
       });
     }
   } catch (err) {
@@ -153,7 +161,10 @@ export async function confirmWithdraw(
 
   revalidatePath('/dashboard/admin/withdraw');
   revalidatePath('/dashboard');
-  return { success: true, message: `Saque de ${amount} ${coin} concluído.` };
+  return {
+    success: true,
+    message: `Saque de ${amount} ${coin} concluído.${uploadError ? ` (${uploadError})` : ''}`,
+  };
 }
 
 // --- Admin: rejeita o pedido (nada acontece on-chain) ---

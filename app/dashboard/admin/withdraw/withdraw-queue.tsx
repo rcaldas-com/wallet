@@ -141,6 +141,17 @@ function WithdrawRow({ item, onResult }: { item: PendingWithdraw; onResult: Push
               className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
             />
           </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Arquivo do comprovante <span className="text-gray-400">(opcional)</span>
+            </label>
+            <input
+              name="proofFile"
+              type="file"
+              accept="image/*,application/pdf"
+              className="w-full text-sm text-gray-600 file:mr-3 file:rounded-md file:border-0 file:bg-emerald-50 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-emerald-700 hover:file:bg-emerald-100"
+            />
+          </div>
           <div className="flex gap-2">
             <button
               type="submit"

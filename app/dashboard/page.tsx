@@ -195,8 +195,20 @@ export default async function DashboardPage() {
                               )}
                             </td>
                             <td className="px-4 py-3 font-medium text-gray-800">
-                              {m.kind === 'deposit' ? '+' : '−'}
-                              {num(Number(m.amount))} {m.coin}
+                              <div>
+                                {m.kind === 'deposit' ? '+' : '−'}
+                                {num(Number(m.amount))} {m.coin}
+                              </div>
+                              {m.fileUrl && (
+                                <a
+                                  href={m.fileUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="block text-xs font-normal text-emerald-600 hover:underline mt-0.5"
+                                >
+                                  Ver comprovante
+                                </a>
+                              )}
                             </td>
                             <td className="px-4 py-3 text-gray-500 hidden sm:table-cell">
                               {m.desc || '—'}

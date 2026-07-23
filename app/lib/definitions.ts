@@ -54,6 +54,16 @@ export type CoinBalance = {
   valueBrl: number;
 };
 
+// Comprovante anexado a um depósito ou saque (upload em S3).
+export type FileAttachment = {
+  originalName: string;
+  s3Key: string;
+  url: string;
+  contentType: string;
+  size: number;
+  createdAt: Date;
+};
+
 // Movimentação (depósito ou saque) exibida no histórico.
 export type Movement = {
   _id: string;
@@ -63,6 +73,8 @@ export type Movement = {
   desc?: string | null;
   status?: string | null;
   timestamp: Date;
+  fileUrl?: string | null;
+  fileName?: string | null;
 };
 
 // Usuário exibido no seletor do admin.

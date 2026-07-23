@@ -26,6 +26,7 @@ type DepositEmailData = {
   coin: string;
   totalBrl: number;
   desc?: string;
+  receiptUrl?: string;
 };
 
 export async function sendDepositEmail(data: DepositEmailData) {
@@ -38,6 +39,7 @@ export async function sendDepositEmail(data: DepositEmailData) {
       currency: 'BRL',
     }),
     desc: data.desc || '',
+    receiptUrl: data.receiptUrl || '',
     app: APP_NAME,
     walletUrl: WALLET_URL,
   });
@@ -77,6 +79,7 @@ type WithdrawProcessedEmailData = {
   destination?: string;
   txHash?: string;
   proof?: string;
+  proofFileUrl?: string;
   reason?: string;
 };
 
@@ -92,6 +95,7 @@ export async function sendWithdrawProcessedEmail(data: WithdrawProcessedEmailDat
     destination: data.destination || '',
     txHash: data.txHash || '',
     proof: data.proof || '',
+    proofFileUrl: data.proofFileUrl || '',
     reason: data.reason || '',
     app: APP_NAME,
     walletUrl: WALLET_URL,

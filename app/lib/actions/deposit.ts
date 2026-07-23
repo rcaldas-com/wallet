@@ -8,6 +8,7 @@ import { listWalletsForReading, readWallets } from '@/app/lib/wallets';
 import { valueBalancesInBrl } from '@/app/lib/quotes';
 import { recordDeposit, getUserName } from '@/app/lib/data-wallet';
 import { sendDepositEmail } from '@/app/lib/email';
+import { uploadReceiptFile } from '@/app/lib/file-upload';
 
 export type DepositState = {
   success: boolean;
@@ -68,8 +69,15 @@ export async function createDeposit(
     return { success: false, message: result.error };
   }
 
+  // Anexa o comprovante enviado pelo admin, se houver (best-effort).
+  const receiptFileInput = formData.get('receiptFile');
+  const { attachment: receiptFile, error: uploadError } = await uploadReceiptFile(
+    receiptFileInput instanceof File ? receiptFileInput : null,
+    `deposit-${userId}`,
+  );
+
   // Registra no histórico.
-  await recordDeposit({ userId, amount, coin, desc });
+  await recordDeposit({ userId, amount, coin, desc, receiptFile });
 
   // Envia o email de confirmação com o total atualizado (best-effort).
   try {
@@ -84,6 +92,7 @@ export async function createDeposit(
         coin,
         totalBrl,
         desc,
+        receiptUrl: receiptFile?.url,
       });
     }
   } catch (err) {
@@ -93,6 +102,6 @@ export async function createDeposit(
   revalidatePath('/dashboard');
   return {
     success: true,
-    message: `Depósito de ${amount} ${coin} realizado com sucesso.`,
+    message: `Depósito de ${amount} ${coin} realizado com sucesso.${uploadError ? ` (${uploadError})` : ''}`,
   };
 }
