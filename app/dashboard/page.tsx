@@ -16,7 +16,7 @@ const brl = (v: number) =>
 const num = (v: number) =>
   v.toLocaleString('pt-BR', { maximumFractionDigits: 7 });
 const dateTime = (d: Date) =>
-  new Date(d).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
+  new Date(d).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short', timeZone: 'America/Sao_Paulo' });
 
 export default async function DashboardPage() {
   const user = await getCurrentUser();

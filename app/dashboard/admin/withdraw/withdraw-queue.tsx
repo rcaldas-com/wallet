@@ -11,7 +11,7 @@ const initialState: WithdrawState = { success: false, message: '' };
 
 const num = (v: string) => Number(v).toLocaleString('pt-BR', { maximumFractionDigits: 7 });
 const dateTime = (d: Date) =>
-  new Date(d).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
+  new Date(d).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short', timeZone: 'America/Sao_Paulo' });
 
 export default function WithdrawQueue({ items }: { items: PendingWithdraw[] }) {
   const [toasts, setToasts] = useState<Toast[]>([]);
