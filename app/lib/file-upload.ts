@@ -6,6 +6,10 @@ import type { FileAttachment } from './definitions';
 
 const MAX_FILE_SIZE = 64 * 1024 * 1024; // 64MB, mesmo limite do car/web
 const ACCEPTED_TYPE = /^image\/|^application\/pdf$/;
+// URL pública do próprio wallet (ver middleware.ts / next.config.js) — usada
+// pra montar o link do proxy de arquivos, não a URL direta do bucket (o
+// Storj não serve objetos como público mesmo com ACL 'public-read').
+const WALLET_URL = process.env.WALLET_URL || '/wallet';
 
 export type ReceiptUploadResult = {
   attachment: FileAttachment | null;
@@ -34,11 +38,12 @@ export async function uploadReceiptFile(
     const processed = await processImage(file);
     const key = `${keyPrefix}-${Date.now()}-${sanitizeFilenameForKey(processed.name)}`;
     const result = await uploadToS3(processed, 'wallet', key);
+    const proxyUrl = `${WALLET_URL.replace(/\/$/, '')}/api/files/wallet/${result.key}`;
     return {
       attachment: {
         originalName: file.name,
         s3Key: result.key,
-        url: result.url,
+        url: proxyUrl,
         contentType: processed.type,
         size: processed.size,
         createdAt: new Date(),
