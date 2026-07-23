@@ -3,7 +3,26 @@ import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
 import clientPromise from './mongodb';
 import { sendVerificationEmail } from './email';
-import { AuthUser, UserSession } from './definitions';
+import { AuthUser, UserRole, UserSession } from './definitions';
+
+const VALID_ROLES = new Set<UserRole>(['admin', 'wallet', 'digitar']);
+
+// Mesma normalização do app web — mantém os papéis consistentes entre os apps.
+function normalizeRoles(user: Record<string, unknown>): UserRole[] {
+  const email = typeof user.email === 'string' ? user.email : '';
+  const globalRole = typeof user.globalRole === 'string' ? user.globalRole : null;
+  const roles = Array.isArray(user.roles)
+    ? user.roles.filter(
+        (role): role is UserRole => typeof role === 'string' && VALID_ROLES.has(role as UserRole),
+      )
+    : [];
+
+  if ((globalRole === 'admin' || email.toLowerCase() === 'rclgsm@gmail.com') && !roles.includes('admin')) {
+    roles.push('admin');
+  }
+
+  return roles;
+}
 
 export async function getUserById(userId: string): Promise<AuthUser | null> {
   try {
@@ -22,6 +41,7 @@ export async function getUserById(userId: string): Promise<AuthUser | null> {
       email: user.email,
       password: '',
       globalRole: user.globalRole || null,
+      roles: normalizeRoles(user),
       createdAt: user.createdAt,
       isActive: user.isActive ?? true,
       emailVerified: user.emailVerified ?? false,
@@ -52,6 +72,7 @@ export async function getUserByEmail(email: string): Promise<AuthUser | null> {
       email: user.email,
       password: user.password,
       globalRole: user.globalRole || null,
+      roles: normalizeRoles(user),
       createdAt: user.createdAt,
       isActive: user.isActive ?? true,
       emailVerified: user.emailVerified ?? true,
@@ -81,6 +102,7 @@ export async function authenticateUser(email: string, password: string): Promise
       name: user.name,
       email: user.email,
       globalRole: user.globalRole,
+      roles: user.roles,
       isActive: user.isActive,
     };
   } catch (error) {

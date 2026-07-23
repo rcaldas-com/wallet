@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
+import { verifySessionToken } from '@/app/lib/session';
 
 const publicPaths = ['/'];
 
@@ -21,7 +22,8 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  const userId = request.cookies.get('walletUserId')?.value;
+  // Sessão compartilhada com o app web (mesmo cookie, mesma assinatura).
+  const userId = await verifySessionToken(request.cookies.get('userId')?.value);
 
   const isAuthPath = authPaths.some((path) => pathname.startsWith(path));
 

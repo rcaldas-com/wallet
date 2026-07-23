@@ -1,10 +1,12 @@
 import { MongoClient, ServerApiVersion } from 'mongodb';
 
-if (!process.env.MONGODB_URI) {
-  throw new Error('Invalid/Missing environment variable: "MONGODB_URI"');
-}
+// Aceita MONGODB_URI (nome próprio do wallet) ou MONGO_URI (nome usado no
+// .env compartilhado da infra rcaldas).
+const uri = process.env.MONGODB_URI || process.env.MONGO_URI;
 
-const uri = process.env.MONGODB_URI;
+if (!uri) {
+  throw new Error('Invalid/Missing environment variable: "MONGODB_URI" (ou "MONGO_URI")');
+}
 const options = {
   serverApi: {
     version: ServerApiVersion.v1,
