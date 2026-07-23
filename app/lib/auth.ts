@@ -16,10 +16,33 @@ export class AuthError extends Error {
   }
 }
 
-// Id do usuário autenticado, já verificado (cookie assinado).
+// Id da sessão real, ignorando qualquer impersonation ativa. Só deve ser
+// usado para autorizar o INÍCIO de uma impersonation — para tudo mais, use
+// getSessionUserId() ou getCurrentUser(), que respeitam impersonation.
+export async function getRealSessionUserId(): Promise<string | null> {
+  const cookieStore = await cookies();
+  return verifySessionToken(cookieStore.get(SESSION_COOKIE)?.value, 'session');
+}
+
+// Id do usuário "efetivo" — o alvo da impersonation, se houver uma ativa
+// (só vale com os dois tokens válidos; iniciada no app web, compartilhada
+// aqui via cookie de domínio .rcaldas.com); senão, a sessão real.
 export async function getSessionUserId(): Promise<string | null> {
   const cookieStore = await cookies();
-  return verifySessionToken(cookieStore.get(SESSION_COOKIE)?.value);
+
+  const targetId = await verifySessionToken(
+    cookieStore.get('impersonate_target_user')?.value,
+    'impersonate-target',
+  );
+  const originalId = await verifySessionToken(
+    cookieStore.get('impersonate_original_user')?.value,
+    'impersonate-original',
+  );
+  if (targetId && originalId) {
+    return targetId;
+  }
+
+  return getRealSessionUserId();
 }
 
 export async function getCurrentUser(): Promise<UserSession | null> {
