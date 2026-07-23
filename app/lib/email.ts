@@ -6,6 +6,8 @@ import redis from '@/app/lib/redis';
 // principal — aqui só saem notificações da carteira.
 const APP_NAME = process.env.TITLE || 'RCaldas';
 const QUEUE_NAME = 'email:send';
+// URL pública do próprio wallet — usada para linkar de volta ao app nos emails.
+const WALLET_URL = process.env.WALLET_URL || '/wallet';
 
 async function enqueueEmail(
   to: string,
@@ -37,6 +39,7 @@ export async function sendDepositEmail(data: DepositEmailData) {
     }),
     desc: data.desc || '',
     app: APP_NAME,
+    walletUrl: WALLET_URL,
   });
 }
 
@@ -60,6 +63,7 @@ export async function sendWithdrawRequestEmail(data: WithdrawRequestEmailData) {
       destination: data.destination || '',
       desc: data.desc || '',
       app: APP_NAME,
+      walletUrl: `${WALLET_URL}/dashboard/admin/withdraw`,
     });
   }
 }
@@ -90,5 +94,6 @@ export async function sendWithdrawProcessedEmail(data: WithdrawProcessedEmailDat
     proof: data.proof || '',
     reason: data.reason || '',
     app: APP_NAME,
+    walletUrl: WALLET_URL,
   });
 }
