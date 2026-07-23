@@ -24,8 +24,9 @@ async function ensureBucketExists(bucket: string): Promise<void> {
   try {
     // Tentar acessar o bucket para verificar se existe
     await s3.send(new HeadBucketCommand({ Bucket: bucket }));
-  } catch (error: any) {
-    if (error.name === 'NotFound' || error.$metadata?.httpStatusCode === 404) {
+  } catch (error) {
+    const err = error as { name?: string; $metadata?: { httpStatusCode?: number } };
+    if (err.name === 'NotFound' || err.$metadata?.httpStatusCode === 404) {
       try {
         // Criar o bucket se não existir
         await s3.send(new CreateBucketCommand({ Bucket: bucket }));

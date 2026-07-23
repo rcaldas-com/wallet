@@ -62,13 +62,13 @@ export async function processImage(file: File): Promise<File> {
         })
         .jpeg({ quality: IMAGE_CONFIG.quality, progressive: true })
         .toBuffer()
-        .then((buf: any) => buf.buffer);
+        .then((buf: Buffer) => buf.buffer as ArrayBuffer);
     } else {
       // Apenas otimizar a qualidade sem redimensionar
       processedBuffer = await sharp(buffer)
         .jpeg({ quality: IMAGE_CONFIG.quality, progressive: true })
         .toBuffer()
-        .then((buf: any) => buf.buffer);
+        .then((buf: Buffer) => buf.buffer as ArrayBuffer);
     }
 
     // Criar novo File com a imagem processada
