@@ -220,9 +220,11 @@ function WithdrawBadge({ status }: { status?: string | null }) {
   );
 }
 
-// Usuário logado, mas sem o papel `wallet`. Link absoluto (<a>) volta para a
-// raiz do site, fora do basePath do wallet.
+// Usuário logado, mas sem o papel `wallet`. O retorno aponta para o app
+// principal por URL absoluta: em dev o wallet vive sob /wallet e em produção
+// num domínio próprio, então um href relativo cairia no lugar errado.
 function NoWalletAccess() {
+  const mainApp = process.env.AUTH_TRUST_HOST || '/';
   return (
     <main className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-10 text-center max-w-md">
@@ -235,7 +237,7 @@ function NoWalletAccess() {
           liberar.
         </p>
         <a
-          href="/"
+          href={mainApp}
           className="inline-block mt-6 bg-emerald-600 hover:bg-emerald-700 text-white font-medium px-5 py-2 rounded-md transition"
         >
           Voltar ao início
