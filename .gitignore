@@ -39,3 +39,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# docker buildx local state (criado por `docker build` com buildx)
+.docker/

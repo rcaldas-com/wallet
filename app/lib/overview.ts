@@ -37,9 +37,13 @@ export type Overview = {
   unpriced: string[];
 };
 
-// Soma um valor no acumulador por moeda.
-function addTo(map: Map<string, number>, coin: string, amount: number) {
-  map.set(coin, (map.get(coin) || 0) + amount);
+// Acumulador por moeda que também guarda o issuer — necessário para o
+// fallback de cotação via rede Stellar em ativos sem par nas exchanges.
+type CoinAccum = Map<string, { amount: number; issuer?: string }>;
+
+function addTo(map: CoinAccum, coin: string, amount: number, issuer?: string) {
+  const prev = map.get(coin);
+  map.set(coin, { amount: (prev?.amount || 0) + amount, issuer: prev?.issuer ?? issuer });
 }
 
 export async function buildOverview(adminUserId: string): Promise<Overview> {
@@ -67,9 +71,9 @@ export async function buildOverview(adminUserId: string): Promise<Overview> {
   }));
 
   // Acumuladores por usuário e globais.
-  const perUser = new Map<string, { liab: Map<string, number>; ext: Map<string, number> }>();
-  const owedByCoin = new Map<string, number>();
-  const myHeldByCoin = new Map<string, number>();
+  const perUser = new Map<string, { liab: CoinAccum; ext: CoinAccum }>();
+  const owedByCoin: CoinAccum = new Map();
+  const myHeldByCoin: CoinAccum = new Map();
 
   for (const { wallet, balances } of balancesPerWallet) {
     if (!perUser.has(wallet.userId)) {
@@ -82,13 +86,13 @@ export async function buildOverview(adminUserId: string): Promise<Overview> {
       // Emitido por mim? então é dívida minha com esse usuário.
       const isMine = b.issuer !== undefined && myIssuerKeys.has(b.issuer);
       if (isMine) {
-        addTo(bucket.liab, b.coin, b.balance);
-        addTo(owedByCoin, b.coin, b.balance);
+        addTo(bucket.liab, b.coin, b.balance, b.issuer);
+        addTo(owedByCoin, b.coin, b.balance, b.issuer);
       } else {
-        addTo(bucket.ext, b.coin, b.balance);
+        addTo(bucket.ext, b.coin, b.balance, b.issuer);
         // Só o que está nas MINHAS wallets conta como lastro real.
         if (wallet.userId === adminUserId) {
-          addTo(myHeldByCoin, b.coin, b.balance);
+          addTo(myHeldByCoin, b.coin, b.balance, b.issuer);
         }
       }
     }
@@ -99,10 +103,10 @@ export async function buildOverview(adminUserId: string): Promise<Overview> {
 
   // Converte para BRL, anotando as moedas sem cotação.
   const unpricedSet = new Set<string>();
-  const toCoinAmounts = async (m: Map<string, number>): Promise<CoinAmount[]> =>
+  const toCoinAmounts = async (m: CoinAccum): Promise<CoinAmount[]> =>
     Promise.all(
-      [...m].map(async ([coin, amount]) => {
-        const price = await getBrlPrice(coin);
+      [...m].map(async ([coin, { amount, issuer }]) => {
+        const price = await getBrlPrice(coin, issuer);
         if (price === null) unpricedSet.add(coin);
         return { coin, amount, brl: price === null ? 0 : amount * price };
       }),
@@ -130,12 +134,12 @@ export async function buildOverview(adminUserId: string): Promise<Overview> {
 
   // Exposição por moeda: o que devo menos o que tenho do mesmo ativo.
   const positions: CoinPosition[] = await Promise.all(
-    [...owedByCoin].map(async ([coin, owed]) => {
-      const held = myHeldByCoin.get(coin) || 0;
+    [...owedByCoin].map(async ([coin, { amount: owed, issuer }]) => {
+      const held = myHeldByCoin.get(coin)?.amount || 0;
       const uncovered = owed - held;
       const [owedBrl, uncoveredBrl] = await Promise.all([
-        getBrlValue(coin, owed),
-        getBrlValue(coin, Math.max(uncovered, 0)),
+        getBrlValue(coin, owed, issuer),
+        getBrlValue(coin, Math.max(uncovered, 0), issuer),
       ]);
       return { coin, owed, held, uncovered, owedBrl, uncoveredBrl };
     }),

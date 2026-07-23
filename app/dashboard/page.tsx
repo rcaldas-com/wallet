@@ -31,9 +31,14 @@ export default async function DashboardPage() {
   // Carteiras cadastradas que não estão sendo consultadas — mostradas para não
   // passarem despercebidas.
   const pendingWallets = reads.filter((r) => r.status !== 'ok');
-  const byCoin = new Map<string, number>();
-  for (const b of raw) byCoin.set(b.coin, (byCoin.get(b.coin) || 0) + b.balance);
-  const aggregated = [...byCoin.entries()].map(([coin, balance]) => ({ coin, balance }));
+  // Mantém o issuer junto do saldo agregado — necessário para o fallback de
+  // cotação via rede Stellar (path payment) em ativos sem par nas exchanges.
+  const byCoin = new Map<string, RawBalance>();
+  for (const b of raw) {
+    const prev = byCoin.get(b.coin);
+    byCoin.set(b.coin, { coin: b.coin, balance: (prev?.balance || 0) + b.balance, issuer: prev?.issuer ?? b.issuer });
+  }
+  const aggregated = [...byCoin.values()];
 
   const { coins, totalBrl } = await valueBalancesInBrl(aggregated);
   coins.sort((a: CoinBalance, b: CoinBalance) => b.valueBrl - a.valueBrl);

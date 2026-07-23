@@ -21,10 +21,13 @@ const NETWORK_PASSPHRASE =
 
 // Domínio usado no home_domain das contas (igual ao sistema antigo).
 const HOME_DOMAIN = process.env.STELLAR_HOME_DOMAIN || 'rcaldas.com';
-// XLM inicial ao criar uma conta nova (financiado pela MAIN_WALLET).
-const INITIAL_BALANCE = process.env.STELLAR_INITIAL_BALANCE || '2';
+// XLM inicial ao criar uma conta nova (financiado pela MAIN_WALLET). Cada
+// trustline exige 0.5 XLM de reserva; com N issuers a reserva mínima da conta
+// é (2+N)*0.5. Valor generoso (igual ao sistema antigo) para não ficar curto
+// à medida que novos issuers forem cadastrados.
+const INITIAL_BALANCE = process.env.STELLAR_INITIAL_BALANCE || '10';
 // Recarga de XLM enviada quando uma conta fica sem reserva para novas trustlines.
-const RESERVE_TOPUP = process.env.STELLAR_RESERVE_TOPUP || '1.5';
+const RESERVE_TOPUP = process.env.STELLAR_RESERVE_TOPUP || '3';
 
 export function getServer(): Horizon.Server {
   return new Horizon.Server(HORIZON_URL);
@@ -56,6 +59,29 @@ async function baseFee(server: Horizon.Server): Promise<string> {
   } catch {
     return BASE_FEE;
   }
+}
+
+// Carrega uma conta com retentativas. O Horizon confirma a transação no
+// ledger antes de sua própria indexação terminar de propagar — uma conta
+// recém-criada pode devolver 404 por um instante mesmo já existindo on-chain.
+async function loadAccountWithRetry(
+  server: Horizon.Server,
+  publicKey: string,
+  attempts = 5,
+  delayMs = 1000,
+) {
+  for (let i = 0; i < attempts; i++) {
+    try {
+      return await server.loadAccount(publicKey);
+    } catch (err) {
+      if (isNotFound(err) && i < attempts - 1) {
+        await new Promise((resolve) => setTimeout(resolve, delayMs));
+        continue;
+      }
+      throw err;
+    }
+  }
+  throw new Error('unreachable');
 }
 
 // --- Acesso a issuers e wallets (server-only, inclui secrets) ---
@@ -104,8 +130,12 @@ async function getUserMainWallet(userId: string): Promise<WalletDoc | null> {
   };
 }
 
-// Cria a wallet custodiada do usuário no banco e a conta on-chain (financiada
-// pela MAIN_WALLET), estabelecendo trustlines para todos os issuers.
+// Cria a wallet custodiada do usuário: a conta on-chain (financiada pela
+// MAIN_WALLET) e, assim que ela existe, a persistência no banco — nessa
+// ordem, para nunca gerar uma conta financiada cuja secret se perde se a
+// etapa seguinte (trustlines) falhar. Trustlines é best-effort aqui: se
+// falhar, a wallet já existe e o fluxo de depósito sabe recuperar (cria a
+// trustline da moeda específica quando o pagamento falha por falta dela).
 async function createUserWallet(userId: string): Promise<WalletDoc> {
   const server = getServer();
   const keypair = Keypair.random();
@@ -129,10 +159,8 @@ async function createUserWallet(userId: string): Promise<WalletDoc> {
   createTx.sign(main);
   await server.submitTransaction(createTx);
 
-  // 2) Estabelece as trustlines para todos os issuers (assinado pela conta do usuário).
-  await setTrustlines(keypair);
-
-  // 3) Só então persiste a wallet custodiada no banco.
+  // 2) Persiste a wallet imediatamente — a partir daqui a secret nunca mais
+  // se perde, mesmo que a etapa de trustlines abaixo falhe.
   const client = await clientPromise;
   const insert = await client.db().collection('wallet').insertOne({
     user: new ObjectId(userId),
@@ -142,13 +170,26 @@ async function createUserWallet(userId: string): Promise<WalletDoc> {
     updated_at: new Date(),
   });
 
-  return {
+  const wallet: WalletDoc = {
     _id: insert.insertedId.toString(),
     user: userId,
     type: 'main',
     key: keypair.publicKey(),
     secret: keypair.secret(),
   };
+
+  // 3) Estabelece as trustlines para todos os issuers (best-effort).
+  try {
+    await setTrustlines(keypair);
+  } catch (err) {
+    console.error(
+      `Falha ao estabelecer trustlines iniciais para ${wallet.key} (usuário ${userId}); ` +
+        'a wallet já está salva e o depósito tentará criar a trustline específica quando necessário:',
+      err,
+    );
+  }
+
+  return wallet;
 }
 
 // Envia uma pequena recarga de XLM da MAIN_WALLET para uma conta (para cobrir reserva).
@@ -183,7 +224,7 @@ async function setTrustlines(userKeypair: Keypair, only?: string[]): Promise<voi
   if (targets.length === 0) return;
 
   const build = async () => {
-    const account = await server.loadAccount(userKeypair.publicKey());
+    const account = await loadAccountWithRetry(server, userKeypair.publicKey());
     const fee = await baseFee(server);
     let builder = new TransactionBuilder(account, {
       fee,
@@ -368,6 +409,32 @@ export async function withdrawCoin(params: {
   } catch (err) {
     console.error('Erro no saque:', err);
     return { ok: false, error: 'Falha ao submeter o saque na rede Stellar.' };
+  }
+}
+
+// --- Preço via a própria rede Stellar (fallback para ativos sem par nas
+// exchanges centralizadas, ex.: AQUA e outros tokens do ecossistema) ---
+
+// Preço de 1 unidade de um ativo Stellar em XLM, pela melhor rota de path
+// payment disponível no DEX (inclusive rotas indiretas) — mesma técnica do
+// `convert_balances` do sistema antigo, usada aqui só para cotação.
+export async function getStellarPathPriceInXlm(
+  assetCode: string,
+  assetIssuer: string,
+): Promise<number | null> {
+  try {
+    const server = getServer();
+    const sourceAsset = new Asset(assetCode, assetIssuer);
+    const paths = await server.strictSendPaths(sourceAsset, '1', [Asset.native()]).call();
+    let best = 0;
+    for (const p of paths.records) {
+      const amount = parseFloat(p.destination_amount);
+      if (amount > best) best = amount;
+    }
+    return best > 0 ? best : null;
+  } catch (err) {
+    console.error(`Falha ao consultar path payment Stellar para ${assetCode}:`, err);
+    return null;
   }
 }
 
