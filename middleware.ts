@@ -2,8 +2,8 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { verifySessionToken } from '@/app/lib/session';
 
-const publicPaths = ['/'];
-
+// O wallet não tem autenticação própria: login, cadastro e verificação de email
+// vivem no app principal (rcaldas) e a sessão é compartilhada pelo cookie.
 const authPaths = [
   '/login',
   '/register',
@@ -12,37 +12,39 @@ const authPaths = [
   '/verify-email',
 ];
 
-const protectedPaths = ['/dashboard'];
+// URL do app principal. Sem ela, cai num caminho relativo (mesmo host).
+const MAIN_APP = process.env.AUTH_TRUST_HOST || '';
+// URL pública deste app. Não dá para usar a origem do request: atrás do proxy
+// ela é o host interno do container (localhost:3000), não o endereço público.
+// Em dev é o subcaminho '/wallet'; em produção, o domínio próprio.
+const WALLET_URL = process.env.WALLET_URL || '/wallet';
+
+function mainAppUrl(pathname: string, search = '') {
+  return `${MAIN_APP}${pathname}${search}`;
+}
 
 export async function middleware(request: NextRequest) {
-  const { pathname } = request.nextUrl;
+  const { pathname, search } = request.nextUrl;
 
-  const isPublicPath = publicPaths.includes(pathname);
-  if (isPublicPath) {
+  // Rotas de autenticação são delegadas ao app principal, preservando query
+  // (ex.: /verify-email?token=…).
+  if (authPaths.some((path) => pathname.startsWith(path))) {
+    return NextResponse.redirect(mainAppUrl(pathname, search));
+  }
+
+  // A raiz decide sozinha para onde mandar (page.tsx).
+  if (pathname === '/') {
     return NextResponse.next();
   }
 
-  // Sessão compartilhada com o app web (mesmo cookie, mesma assinatura).
+  // Um cookie presente mas adulterado conta como não autenticado.
   const userId = await verifySessionToken(request.cookies.get('userId')?.value);
 
-  const isAuthPath = authPaths.some((path) => pathname.startsWith(path));
-
-  if (isAuthPath) {
-    if (userId) {
-      return NextResponse.redirect(new URL('/dashboard', request.url));
-    }
-    return NextResponse.next();
-  }
-
-  const isProtectedPath = protectedPaths.some((path) => pathname.startsWith(path));
-
-  if (isProtectedPath) {
-    if (!userId) {
-      const loginUrl = new URL('/login', request.url);
-      loginUrl.searchParams.set('callbackUrl', pathname);
-      return NextResponse.redirect(loginUrl);
-    }
-    return NextResponse.next();
+  if (!userId) {
+    const callback = `${WALLET_URL}${pathname}${search}`;
+    return NextResponse.redirect(
+      mainAppUrl('/login', `?callbackUrl=${encodeURIComponent(callback)}`),
+    );
   }
 
   return NextResponse.next();

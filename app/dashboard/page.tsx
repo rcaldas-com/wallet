@@ -2,8 +2,9 @@ import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { getCurrentUser, canUseWallet, hasRole } from '@/app/lib/auth';
 import { logoutAction } from '@/app/lib/actions/users';
-import { getUserWalletKeys, getUserMovements } from '@/app/lib/data-wallet';
-import { getAccountBalances, type RawBalance } from '@/app/lib/stellar';
+import { getUserMovements } from '@/app/lib/data-wallet';
+import { listWalletsForReading, readWallets } from '@/app/lib/wallets';
+import type { RawBalance } from '@/app/lib/stellar';
 import { valueBalancesInBrl } from '@/app/lib/quotes';
 import type { CoinBalance } from '@/app/lib/definitions';
 import WithdrawForm from './withdraw-form';
@@ -25,10 +26,11 @@ export default async function DashboardPage() {
   const isAdmin = hasRole(user, 'admin');
 
   // Agrega saldos de todas as wallets do usuário (custodiadas + somente leitura).
-  const keys = await getUserWalletKeys(user._id);
-  const raw: RawBalance[] = (
-    await Promise.all(keys.map((k) => getAccountBalances(k.key)))
-  ).flat();
+  const reads = await readWallets(await listWalletsForReading({ userId: user._id }));
+  const raw: RawBalance[] = reads.flatMap((r) => r.balances);
+  // Carteiras cadastradas que não estão sendo consultadas — mostradas para não
+  // passarem despercebidas.
+  const pendingWallets = reads.filter((r) => r.status !== 'ok');
   const byCoin = new Map<string, number>();
   for (const b of raw) byCoin.set(b.coin, (byCoin.get(b.coin) || 0) + b.balance);
   const aggregated = [...byCoin.entries()].map(([coin, balance]) => ({ coin, balance }));
@@ -47,6 +49,12 @@ export default async function DashboardPage() {
           <div className="flex items-center gap-4">
             {isAdmin && (
               <>
+                <Link
+                  href="/dashboard/admin/overview"
+                  className="text-sm bg-white/15 hover:bg-white/25 px-3 py-1 rounded transition"
+                >
+                  Visão geral
+                </Link>
                 <Link
                   href="/dashboard/admin/deposit"
                   className="text-sm bg-white/15 hover:bg-white/25 px-3 py-1 rounded transition"
@@ -86,6 +94,24 @@ export default async function DashboardPage() {
           </div>
           <FinanceArt />
         </section>
+
+        {pendingWallets.length > 0 && (
+          <section className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+            <p className="font-semibold mb-1">Carteiras não somadas ao saldo</p>
+            <ul className="space-y-0.5">
+              {pendingWallets.map((w) => (
+                <li key={w.key} className="break-all">
+                  <strong>{w.type}</strong> · {w.key.slice(0, 12)}…{' '}
+                  <span className="text-amber-700">
+                    {w.status === 'sem-leitor'
+                      ? '(consulta ainda não implementada)'
+                      : '(falha ao consultar)'}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
 
         {isEmpty ? (
           <EmptyState />

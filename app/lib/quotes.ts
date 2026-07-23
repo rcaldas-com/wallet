@@ -35,28 +35,38 @@ async function fetchBrlPrice(coin: string): Promise<number | null> {
   }
 }
 
-// Valor em BRL de `amount` unidades de `coin`.
+// Preço de 1 unidade em BRL, ou null quando não há cotação disponível.
+export async function getBrlPrice(coin: string): Promise<number | null> {
+  if (coin === BASE_COIN) return 1;
+  return fetchBrlPrice(coin);
+}
+
+// Valor em BRL de `amount` unidades de `coin`. Moeda sem cotação vale 0 —
+// use `getBrlPrice` quando precisar distinguir "vale zero" de "não sei o preço".
 export async function getBrlValue(coin: string, amount: number): Promise<number> {
-  if (coin === BASE_COIN) return amount;
-  const price = await fetchBrlPrice(coin);
+  const price = await getBrlPrice(coin);
   if (price === null) return 0;
   return amount * price;
 }
 
 // Converte uma lista de saldos brutos em saldos com valor em BRL.
-// Ignora poeira (valor desprezível) opcionalmente via `minBrl`.
+// `unpriced` lista as moedas sem cotação, que entraram como 0 no total — sem
+// isso um saldo relevante sumiria do total sem deixar rastro.
 export async function valueBalancesInBrl(
   balances: RawBalance[],
   minBrl = 0,
-): Promise<{ coins: CoinBalance[]; totalBrl: number }> {
+): Promise<{ coins: CoinBalance[]; totalBrl: number; unpriced: string[] }> {
   const coins: CoinBalance[] = [];
+  const unpriced: string[] = [];
   let totalBrl = 0;
   for (const b of balances) {
     if (b.balance <= 0) continue;
-    const valueBrl = await getBrlValue(b.coin, b.balance);
-    if (valueBrl < minBrl) continue;
+    const price = await getBrlPrice(b.coin);
+    if (price === null && !unpriced.includes(b.coin)) unpriced.push(b.coin);
+    const valueBrl = price === null ? 0 : b.balance * price;
+    if (valueBrl < minBrl && price !== null) continue;
     coins.push({ coin: b.coin, balance: b.balance, valueBrl });
     totalBrl += valueBrl;
   }
-  return { coins, totalBrl };
+  return { coins, totalBrl, unpriced };
 }

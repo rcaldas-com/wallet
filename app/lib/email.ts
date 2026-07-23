@@ -2,8 +2,8 @@
 
 import redis from '@/app/lib/redis';
 
-const APP_URL = process.env.AUTH_TRUST_HOST || 'http://localhost:8001';
-const BASE_PATH = process.env.NODE_ENV === 'production' ? '' : '/wallet';
+// Emails de autenticação (verificação, reset de senha) são enviados pelo app
+// principal — aqui só saem notificações da carteira.
 const APP_NAME = process.env.TITLE || 'RCaldas';
 const QUEUE_NAME = 'email:send';
 
@@ -15,30 +15,6 @@ async function enqueueEmail(
 ) {
   const payload = JSON.stringify({ to, subject, template, variables });
   await redis.lpush(QUEUE_NAME, payload);
-}
-
-export async function sendVerificationEmail(email: string, token: string, name: string) {
-  const verificationUrl = `${APP_URL}${BASE_PATH}/verify-email?token=${token}`;
-
-  console.log('\n=== EMAIL DE VERIFICAÇÃO (DEV MODE) ===');
-  console.log('Para:', email);
-  console.log('Nome:', name);
-  console.log('Link:', verificationUrl);
-  console.log('========================================\n');
-
-  return { success: true, devMode: true };
-}
-
-export async function sendPasswordResetEmail(email: string, token: string, name: string) {
-  const resetUrl = `${APP_URL}${BASE_PATH}/reset-password?token=${token}`;
-
-  console.log('\n=== EMAIL DE REDEFINIÇÃO DE SENHA (DEV MODE) ===');
-  console.log('Para:', email);
-  console.log('Nome:', name);
-  console.log('Link:', resetUrl);
-  console.log('=================================================\n');
-
-  return { success: true, devMode: true };
 }
 
 type DepositEmailData = {

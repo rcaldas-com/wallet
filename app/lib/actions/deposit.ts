@@ -3,9 +3,10 @@
 import { z } from 'zod';
 import { revalidatePath } from 'next/cache';
 import { requireAdmin } from '@/app/lib/auth';
-import { depositCoin, getAccountBalances } from '@/app/lib/stellar';
+import { depositCoin } from '@/app/lib/stellar';
+import { listWalletsForReading, readWallets } from '@/app/lib/wallets';
 import { valueBalancesInBrl } from '@/app/lib/quotes';
-import { recordDeposit, getUserName, getUserWalletKeys } from '@/app/lib/data-wallet';
+import { recordDeposit, getUserName } from '@/app/lib/data-wallet';
 import { sendDepositEmail } from '@/app/lib/email';
 
 export type DepositState = {
@@ -74,11 +75,8 @@ export async function createDeposit(
   try {
     const user = await getUserName(userId);
     if (user) {
-      const keys = await getUserWalletKeys(userId);
-      const allBalances = (
-        await Promise.all(keys.map((k) => getAccountBalances(k.key)))
-      ).flat();
-      const { totalBrl } = await valueBalancesInBrl(allBalances);
+      const reads = await readWallets(await listWalletsForReading({ userId }));
+      const { totalBrl } = await valueBalancesInBrl(reads.flatMap((r) => r.balances));
       await sendDepositEmail({
         email: user.email,
         name: user.name,

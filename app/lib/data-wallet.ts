@@ -30,6 +30,57 @@ export async function getUserName(userId: string): Promise<{ name: string; email
   return { name: d.name, email: d.email };
 }
 
+// Todas as wallets cadastradas (sem secrets) — usado na visão geral do admin.
+export async function listAllWallets(): Promise<
+  { userId: string; key: string; type: string }[]
+> {
+  const client = await clientPromise;
+  const docs = await client
+    .db()
+    .collection('wallet')
+    .find({}, { projection: { user: 1, key: 1, type: 1 } })
+    .toArray();
+  return docs
+    .filter((d) => d.user && d.key)
+    .map((d) => ({
+      userId: d.user.toString(),
+      key: d.key as string,
+      type: (d.type as string) || 'desconhecido',
+    }));
+}
+
+// Usuários por lista de ids (nome/email apenas).
+export async function getUsersByIds(ids: string[]): Promise<UserOption[]> {
+  if (ids.length === 0) return [];
+  const client = await clientPromise;
+  const docs = await client
+    .db()
+    .collection('user')
+    .find(
+      { _id: { $in: ids.map((id) => new ObjectId(id)) } },
+      { projection: { name: 1, email: 1 } },
+    )
+    .toArray();
+  return docs.map((d) => ({
+    _id: d._id.toString(),
+    name: d.name || '(sem nome)',
+    email: d.email || '',
+  }));
+}
+
+// Issuers com nome e chave pública — identifica quais ativos são emitidos por nós.
+export async function listIssuerKeys(): Promise<{ name: string; publicKey: string }[]> {
+  const client = await clientPromise;
+  const docs = await client
+    .db()
+    .collection('issuer')
+    .find({}, { projection: { name: 1, public_key: 1 } })
+    .toArray();
+  return docs
+    .filter((d) => d.public_key)
+    .map((d) => ({ name: d.name as string, publicKey: d.public_key as string }));
+}
+
 // Emails dos administradores (para notificações de pedidos).
 export async function getAdminEmails(): Promise<string[]> {
   const client = await clientPromise;
