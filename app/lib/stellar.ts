@@ -52,6 +52,20 @@ function isNotFound(err: unknown): boolean {
   return anyErr?.response?.status === 404 || anyErr?.name === 'NotFoundError';
 }
 
+// Detecta falhas por saldo de XLM insuficiente — seja para abrir uma nova
+// trustline (reserva) ou para pagar a taxa da transação. Cobertas por recarga
+// automática e transparente a partir da MAIN_WALLET, em qualquer operação
+// assinada pela conta do usuário.
+function isInsufficientXlm(err: unknown): boolean {
+  if (operationCodes(err).some((c) => c === 'op_low_reserve' || c === 'op_underfunded')) {
+    return true;
+  }
+  const anyErr = err as {
+    response?: { data?: { extras?: { result_codes?: { transaction?: string } } } };
+  };
+  return anyErr?.response?.data?.extras?.result_codes?.transaction === 'tx_insufficient_balance';
+}
+
 async function baseFee(server: Horizon.Server): Promise<string> {
   try {
     const fee = await server.fetchBaseFee();
@@ -243,8 +257,9 @@ async function setTrustlines(userKeypair: Keypair, only?: string[]): Promise<voi
   try {
     await server.submitTransaction(await build());
   } catch (err) {
-    // Reserva insuficiente: recarrega com XLM e tenta de novo.
-    if (operationCodes(err).includes('op_low_reserve')) {
+    // XLM insuficiente (reserva ou taxa): recarrega e tenta de novo — de
+    // forma transparente, sem expor esse detalhe operacional ao usuário.
+    if (isInsufficientXlm(err)) {
       await topUpReserve(userKeypair.publicKey());
       await server.submitTransaction(await build());
       return;
@@ -391,22 +406,39 @@ export async function withdrawCoin(params: {
     };
   }
 
-  const fee = await baseFee(server);
-  const tx = new TransactionBuilder(account, {
-    fee,
-    networkPassphrase: NETWORK_PASSPHRASE,
-  })
-    .addOperation(
-      Operation.payment({ destination: issuer.public_key, asset, amount }),
-    )
-    .setTimeout(60)
-    .build();
-  tx.sign(userKp);
+  const buildWithdraw = async () => {
+    // Recarrega a conta a cada tentativa — a sequence não muda com a
+    // recarga de XLM (paga pela MAIN_WALLET), mas mantém o padrão do
+    // restante do arquivo e cobre qualquer atraso de indexação do Horizon.
+    const acc = await loadAccountWithRetry(server, wallet.key);
+    const fee = await baseFee(server);
+    const t = new TransactionBuilder(acc, {
+      fee,
+      networkPassphrase: NETWORK_PASSPHRASE,
+    })
+      .addOperation(Operation.payment({ destination: issuer.public_key, asset, amount }))
+      .setTimeout(60)
+      .build();
+    t.sign(userKp);
+    return t;
+  };
 
   try {
-    const res = await server.submitTransaction(tx);
+    const res = await server.submitTransaction(await buildWithdraw());
     return { ok: true, hash: res.hash };
   } catch (err) {
+    // XLM insuficiente para a taxa: recarrega a conta do usuário a partir da
+    // MAIN_WALLET e tenta de novo — transparente, sem falhar para o usuário.
+    if (isInsufficientXlm(err)) {
+      try {
+        await topUpReserve(wallet.key);
+        const res = await server.submitTransaction(await buildWithdraw());
+        return { ok: true, hash: res.hash };
+      } catch (retryErr) {
+        console.error('Erro no saque após recarregar a conta:', retryErr);
+        return { ok: false, error: 'Falha ao submeter o saque após recarregar a conta.' };
+      }
+    }
     console.error('Erro no saque:', err);
     return { ok: false, error: 'Falha ao submeter o saque na rede Stellar.' };
   }
