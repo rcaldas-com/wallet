@@ -16,6 +16,14 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Wallet - RCaldas",
   description: "Carteira digital RCaldas",
+  icons: {
+    apple: "/logo.png",
+  },
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "Wallet",
+  },
 };
 
 export default function RootLayout({

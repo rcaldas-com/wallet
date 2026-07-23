@@ -74,7 +74,15 @@ export default async function DashboardPage() {
                 </Link>
               </>
             )}
-            <span className="text-sm hidden sm:inline">{user.name}</span>
+            {/* O wallet não tem tela de perfil própria nem outro link de volta
+                ao site principal — o nome vira o caminho de retorno. */}
+            <a
+              href={`${process.env.AUTH_TRUST_HOST || ''}/dashboard`}
+              className="text-sm hover:underline"
+              title="Voltar para o RCaldas"
+            >
+              {user.name}
+            </a>
             <form action={logoutAction}>
               <button
                 type="submit"
