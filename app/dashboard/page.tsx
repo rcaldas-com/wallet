@@ -11,6 +11,7 @@ import { getCoinCatalog, sortCoins } from '@/app/lib/coin-catalog';
 import WithdrawForm from './withdraw-form';
 import ConvertForm from './convert-form';
 import ThemeToggle from '@/app/components/theme-toggle';
+import AutoRefresh from '@/app/components/auto-refresh';
 
 export const dynamic = 'force-dynamic';
 
@@ -69,7 +70,9 @@ export default async function DashboardPage() {
   }
 
   return (
-    <main className="min-h-screen bg-gray-50 dark:bg-zinc-950">
+    <>
+      <AutoRefresh />
+      <main className="min-h-screen bg-gray-50 dark:bg-zinc-950">
       <header className="bg-emerald-600 text-white shadow">
         <div className="max-w-4xl mx-auto px-4 py-4 flex items-center justify-between">
           <Link href="/" className="text-xl font-bold hover:opacity-90 transition">💰 Wallet</Link>
@@ -257,7 +260,8 @@ export default async function DashboardPage() {
           </section>
         )}
       </div>
-    </main>
+      </main>
+    </>
   );
 }
 
