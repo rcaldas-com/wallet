@@ -114,24 +114,6 @@ export default async function DashboardPage() {
           <FinanceArt />
         </section>
 
-        {pendingWallets.length > 0 && (
-          <section className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-200">
-            <p className="font-semibold mb-1">Carteiras não somadas ao saldo</p>
-            <ul className="space-y-0.5">
-              {pendingWallets.map((w) => (
-                <li key={w.key} className="break-all">
-                  <strong>{w.type}</strong> · {w.key.slice(0, 12)}…{' '}
-                  <span className="text-amber-700 dark:text-amber-400">
-                    {w.status === 'sem-leitor'
-                      ? '(consulta ainda não implementada)'
-                      : '(falha ao consultar)'}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          </section>
-        )}
-
         {isEmpty ? (
           <EmptyState />
         ) : (
@@ -231,6 +213,24 @@ export default async function DashboardPage() {
               )}
             </section>
           </>
+        )}
+
+        {pendingWallets.length > 0 && (
+          <section className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-200">
+            <p className="font-semibold mb-1">Carteiras não somadas ao saldo</p>
+            <ul className="space-y-0.5">
+              {pendingWallets.map((w) => (
+                <li key={w.key} className="break-all">
+                  <strong>{w.type}</strong> · {w.key.slice(0, 12)}…{' '}
+                  <span className="text-amber-700 dark:text-amber-400">
+                    {w.status === 'sem-leitor'
+                      ? '(consulta ainda não implementada)'
+                      : '(falha ao consultar)'}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </section>
         )}
       </div>
     </main>

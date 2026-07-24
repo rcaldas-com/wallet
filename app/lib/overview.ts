@@ -101,16 +101,24 @@ export async function buildOverview(adminUserId: string): Promise<Overview> {
   const users = await getUsersByIds([...perUser.keys()]);
   const userById = new Map(users.map((u) => [u._id, u]));
 
-  // Converte para BRL, anotando as moedas sem cotação.
+  // Converte para BRL, anotando as moedas sem cotação. Saldos residuais
+  // (< R$5) são ignorados, mesmo corte já aplicado no dashboard do usuário
+  // e no total do email de depósito — moeda sem cotação nunca some (não dá
+  // pra saber se é poeira ou um saldo real sem preço).
+  const MIN_BRL = 5;
   const unpricedSet = new Set<string>();
-  const toCoinAmounts = async (m: CoinAccum): Promise<CoinAmount[]> =>
-    Promise.all(
+  const toCoinAmounts = async (m: CoinAccum): Promise<CoinAmount[]> => {
+    const withPrice = await Promise.all(
       [...m].map(async ([coin, { amount, issuer }]) => {
         const price = await getBrlPrice(coin, issuer);
         if (price === null) unpricedSet.add(coin);
-        return { coin, amount, brl: price === null ? 0 : amount * price };
+        return { coin, amount, brl: price === null ? 0 : amount * price, unpriced: price === null };
       }),
     );
+    return withPrice
+      .filter((c) => c.unpriced || c.brl >= MIN_BRL)
+      .map(({ coin, amount, brl }) => ({ coin, amount, brl }));
+  };
 
   const holdings: UserHolding[] = [];
   for (const [userId, bucket] of perUser) {
