@@ -11,9 +11,16 @@ export default async function Home() {
     redirect('/dashboard');
   }
 
+  // Mesmo callback que o middleware anexa pras demais rotas — a raiz é um
+  // caso especial ali (não passa pela checagem de sessão do middleware) e
+  // por isso precisa montar o próprio callbackUrl aqui. Sem isso, os links
+  // de email que apontam pra raiz do wallet perdem o destino: caem no login
+  // do web sem callbackUrl e, depois de logar, ficam lá em vez de voltar.
+  const walletUrl = process.env.WALLET_URL || '/wallet';
+  const callback = `${walletUrl}/dashboard`;
   const loginUrl = process.env.AUTH_TRUST_HOST
-    ? `${process.env.AUTH_TRUST_HOST}/login`
-    : '/login';
+    ? `${process.env.AUTH_TRUST_HOST}/login?callbackUrl=${encodeURIComponent(callback)}`
+    : `/login?callbackUrl=${encodeURIComponent(callback)}`;
 
   redirect(loginUrl);
 }
