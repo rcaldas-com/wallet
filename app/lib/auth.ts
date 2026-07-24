@@ -65,6 +65,7 @@ export async function getCurrentUser(): Promise<UserSession | null> {
       globalRole: user.globalRole,
       roles: user.roles,
       isActive: user.isActive,
+      theme: user.theme,
     };
   } catch (error) {
     console.error('Error getting current user:', error);

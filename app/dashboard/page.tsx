@@ -8,6 +8,7 @@ import type { RawBalance } from '@/app/lib/stellar';
 import { valueBalancesInBrl } from '@/app/lib/quotes';
 import type { CoinBalance } from '@/app/lib/definitions';
 import WithdrawForm from './withdraw-form';
+import ThemeToggle from '@/app/components/theme-toggle';
 
 export const dynamic = 'force-dynamic';
 
@@ -51,11 +52,12 @@ export default async function DashboardPage() {
   const isEmpty = coins.length === 0 && movements.length === 0;
 
   return (
-    <main className="min-h-screen bg-gray-50">
+    <main className="min-h-screen bg-gray-50 dark:bg-zinc-950">
       <header className="bg-emerald-600 text-white shadow">
         <div className="max-w-4xl mx-auto px-4 py-4 flex items-center justify-between">
           <Link href="/" className="text-xl font-bold hover:opacity-90 transition">💰 Wallet</Link>
           <div className="flex items-center gap-4">
+            <ThemeToggle loggedIn />
             {isAdmin && (
               <>
                 <Link
@@ -113,13 +115,13 @@ export default async function DashboardPage() {
         </section>
 
         {pendingWallets.length > 0 && (
-          <section className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+          <section className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-200">
             <p className="font-semibold mb-1">Carteiras não somadas ao saldo</p>
             <ul className="space-y-0.5">
               {pendingWallets.map((w) => (
                 <li key={w.key} className="break-all">
                   <strong>{w.type}</strong> · {w.key.slice(0, 12)}…{' '}
-                  <span className="text-amber-700">
+                  <span className="text-amber-700 dark:text-amber-400">
                     {w.status === 'sem-leitor'
                       ? '(consulta ainda não implementada)'
                       : '(falha ao consultar)'}
@@ -136,21 +138,21 @@ export default async function DashboardPage() {
           <>
             {/* Saldos por moeda */}
             <section>
-              <h2 className="text-lg font-semibold text-gray-800 mb-3">Suas moedas</h2>
+              <h2 className="text-lg font-semibold text-gray-800 dark:text-zinc-100 mb-3">Suas moedas</h2>
               {coins.length === 0 ? (
-                <p className="text-gray-500 text-sm">Nenhum saldo em carteira.</p>
+                <p className="text-gray-500 dark:text-zinc-400 text-sm">Nenhum saldo em carteira.</p>
               ) : (
                 <div className="grid gap-3 sm:grid-cols-2">
                   {coins.map((c) => (
                     <div
                       key={c.coin}
-                      className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 flex items-center justify-between"
+                      className="bg-white dark:bg-zinc-900 rounded-xl shadow-sm border border-gray-100 dark:border-zinc-800 p-4 flex items-center justify-between"
                     >
                       <div>
-                        <p className="font-semibold text-gray-800">{c.coin}</p>
-                        <p className="text-gray-500 text-sm">{num(c.balance)}</p>
+                        <p className="font-semibold text-gray-800 dark:text-zinc-100">{c.coin}</p>
+                        <p className="text-gray-500 dark:text-zinc-400 text-sm">{num(c.balance)}</p>
                       </div>
-                      <p className="text-gray-900 font-medium">{brl(c.valueBrl)}</p>
+                      <p className="text-gray-900 dark:text-zinc-50 font-medium">{brl(c.valueBrl)}</p>
                     </div>
                   ))}
                 </div>
@@ -158,9 +160,9 @@ export default async function DashboardPage() {
             </section>
 
             {/* Solicitar saque */}
-            <section className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
-              <h2 className="text-lg font-semibold text-gray-800 mb-1">Solicitar saque</h2>
-              <p className="text-gray-500 text-sm mb-4">
+            <section className="bg-white dark:bg-zinc-900 rounded-xl shadow-sm border border-gray-100 dark:border-zinc-800 p-5">
+              <h2 className="text-lg font-semibold text-gray-800 dark:text-zinc-100 mb-1">Solicitar saque</h2>
+              <p className="text-gray-500 dark:text-zinc-400 text-sm mb-4">
                 Envie um pedido de saque. Você será avisado quando for processado.
               </p>
               <WithdrawForm holdings={coins} />
@@ -168,14 +170,14 @@ export default async function DashboardPage() {
 
             {/* Histórico */}
             <section>
-              <h2 className="text-lg font-semibold text-gray-800 mb-3">Movimentações</h2>
+              <h2 className="text-lg font-semibold text-gray-800 dark:text-zinc-100 mb-3">Movimentações</h2>
               {movements.length === 0 ? (
-                <p className="text-gray-500 text-sm">Nenhuma movimentação ainda.</p>
+                <p className="text-gray-500 dark:text-zinc-400 text-sm">Nenhuma movimentação ainda.</p>
               ) : (
-                <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+                <div className="bg-white dark:bg-zinc-900 rounded-xl shadow-sm border border-gray-100 dark:border-zinc-800 overflow-hidden">
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm">
-                      <thead className="bg-gray-50 text-gray-500 text-left">
+                      <thead className="bg-gray-50 dark:bg-zinc-800 text-gray-500 dark:text-zinc-400 text-left">
                         <tr>
                           <th className="px-4 py-3 font-medium">Tipo</th>
                           <th className="px-4 py-3 font-medium">Valor</th>
@@ -183,22 +185,22 @@ export default async function DashboardPage() {
                           <th className="px-4 py-3 font-medium">Data</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-gray-100">
+                      <tbody className="divide-y divide-gray-100 dark:divide-zinc-800">
                         {movements.map((m) => (
                           <tr key={m._id}>
                             <td className="px-4 py-3">
                               {m.kind === 'deposit' ? (
-                                <span className="inline-flex items-center gap-1 text-emerald-700">
+                                <span className="inline-flex items-center gap-1 text-emerald-700 dark:text-emerald-400">
                                   <span className="text-lg leading-none">↓</span> Depósito
                                 </span>
                               ) : (
-                                <span className="inline-flex items-center gap-1 text-amber-700">
+                                <span className="inline-flex items-center gap-1 text-amber-700 dark:text-amber-400">
                                   <span className="text-lg leading-none">↑</span> Saque
                                   <WithdrawBadge status={m.status} />
                                 </span>
                               )}
                             </td>
-                            <td className="px-4 py-3 font-medium text-gray-800">
+                            <td className="px-4 py-3 font-medium text-gray-800 dark:text-zinc-100">
                               <div>
                                 {m.kind === 'deposit' ? '+' : '−'}
                                 {num(Number(m.amount))} {m.coin}
@@ -208,16 +210,16 @@ export default async function DashboardPage() {
                                   href={m.fileUrl}
                                   target="_blank"
                                   rel="noopener noreferrer"
-                                  className="block text-xs font-normal text-emerald-600 hover:underline mt-0.5"
+                                  className="block text-xs font-normal text-emerald-600 dark:text-emerald-400 hover:underline mt-0.5"
                                 >
                                   Ver comprovante
                                 </a>
                               )}
                             </td>
-                            <td className="px-4 py-3 text-gray-500 hidden sm:table-cell">
+                            <td className="px-4 py-3 text-gray-500 dark:text-zinc-400 hidden sm:table-cell">
                               {m.desc || '—'}
                             </td>
-                            <td className="px-4 py-3 text-gray-500 whitespace-nowrap">
+                            <td className="px-4 py-3 text-gray-500 dark:text-zinc-400 whitespace-nowrap">
                               {dateTime(m.timestamp)}
                             </td>
                           </tr>
@@ -238,9 +240,9 @@ export default async function DashboardPage() {
 // Selo de situação do saque no histórico.
 function WithdrawBadge({ status }: { status?: string | null }) {
   const badges: Record<string, { label: string; className: string }> = {
-    requested: { label: 'solicitado', className: 'bg-amber-100 text-amber-700' },
-    rejected: { label: 'recusado', className: 'bg-red-100 text-red-700' },
-    completed: { label: 'concluído', className: 'bg-emerald-100 text-emerald-700' },
+    requested: { label: 'solicitado', className: 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300' },
+    rejected: { label: 'recusado', className: 'bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300' },
+    completed: { label: 'concluído', className: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300' },
   };
   const badge = status ? badges[status] : undefined;
   if (!badge) return null;
@@ -255,13 +257,13 @@ function WithdrawBadge({ status }: { status?: string | null }) {
 function NoWalletAccess() {
   const mainApp = process.env.AUTH_TRUST_HOST || '/';
   return (
-    <main className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-10 text-center max-w-md">
+    <main className="min-h-screen bg-gray-50 dark:bg-zinc-950 flex items-center justify-center px-4">
+      <div className="bg-white dark:bg-zinc-900 rounded-2xl shadow-sm border border-gray-100 dark:border-zinc-800 p-10 text-center max-w-md">
         <div className="mx-auto w-32 h-32 mb-6">
           <FinanceIllustration />
         </div>
-        <h1 className="text-xl font-semibold text-gray-800">Acesso não liberado</h1>
-        <p className="text-gray-500 mt-2">
+        <h1 className="text-xl font-semibold text-gray-800 dark:text-zinc-100">Acesso não liberado</h1>
+        <p className="text-gray-500 dark:text-zinc-400 mt-2">
           Sua conta ainda não tem acesso à carteira. Fale com o administrador para
           liberar.
         </p>
@@ -278,12 +280,12 @@ function NoWalletAccess() {
 
 function EmptyState() {
   return (
-    <section className="bg-white rounded-2xl shadow-sm border border-gray-100 p-10 text-center">
+    <section className="bg-white dark:bg-zinc-900 rounded-2xl shadow-sm border border-gray-100 dark:border-zinc-800 p-10 text-center">
       <div className="mx-auto w-40 h-40 mb-6">
         <FinanceIllustration />
       </div>
-      <h2 className="text-xl font-semibold text-gray-800">Sua carteira está pronta</h2>
-      <p className="text-gray-500 mt-2 max-w-md mx-auto">
+      <h2 className="text-xl font-semibold text-gray-800 dark:text-zinc-100">Sua carteira está pronta</h2>
+      <p className="text-gray-500 dark:text-zinc-400 mt-2 max-w-md mx-auto">
         Assim que um depósito for creditado, seu saldo e histórico aparecem aqui,
         sempre atualizados pela cotação de mercado.
       </p>

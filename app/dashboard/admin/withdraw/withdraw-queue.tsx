@@ -37,8 +37,8 @@ export default function WithdrawQueue({ items }: { items: PendingWithdraw[] }) {
               key={t.id}
               className={`p-3 rounded-lg text-sm shadow-lg border ${
                 t.success
-                  ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
-                  : 'bg-red-50 border-red-200 text-red-700'
+                  ? 'bg-emerald-50 border-emerald-200 text-emerald-800 dark:bg-emerald-950 dark:border-emerald-900 dark:text-emerald-200'
+                  : 'bg-red-50 border-red-200 text-red-700 dark:bg-red-950 dark:border-red-900 dark:text-red-200'
               }`}
             >
               {t.message}
@@ -72,27 +72,27 @@ function WithdrawRow({ item, onResult }: { item: PendingWithdraw; onResult: Push
   const busy = confirming || declining;
 
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
+    <div className="bg-white dark:bg-zinc-900 rounded-xl shadow-sm border border-gray-100 dark:border-zinc-800 p-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="font-semibold text-gray-800">
+          <p className="font-semibold text-gray-800 dark:text-zinc-100">
             {num(item.amount)} {item.coin}
           </p>
-          <p className="text-sm text-gray-600">
-            {item.userName} <span className="text-gray-400">· {item.userEmail}</span>
+          <p className="text-sm text-gray-600 dark:text-zinc-400">
+            {item.userName} <span className="text-gray-400 dark:text-zinc-500">· {item.userEmail}</span>
           </p>
           {item.destination && (
-            <p className="text-sm text-gray-500 mt-1 break-all">
-              <span className="text-gray-400">Destino:</span> {item.destination}
+            <p className="text-sm text-gray-500 dark:text-zinc-400 mt-1 break-all">
+              <span className="text-gray-400 dark:text-zinc-500">Destino:</span> {item.destination}
             </p>
           )}
           {item.desc && (
-            <p className="text-sm text-gray-500 break-all">
-              <span className="text-gray-400">Obs.:</span> {item.desc}
+            <p className="text-sm text-gray-500 dark:text-zinc-400 break-all">
+              <span className="text-gray-400 dark:text-zinc-500">Obs.:</span> {item.desc}
             </p>
           )}
         </div>
-        <p className="text-xs text-gray-400 whitespace-nowrap">{dateTime(item.timestamp)}</p>
+        <p className="text-xs text-gray-400 dark:text-zinc-500 whitespace-nowrap">{dateTime(item.timestamp)}</p>
       </div>
 
       {mode === 'idle' && (
@@ -107,7 +107,7 @@ function WithdrawRow({ item, onResult }: { item: PendingWithdraw; onResult: Push
           <button
             type="button"
             onClick={() => setMode('decline')}
-            className="border border-gray-300 text-gray-600 hover:bg-gray-50 text-sm font-medium px-4 py-1.5 rounded-md transition"
+            className="border border-gray-300 dark:border-zinc-700 text-gray-600 dark:text-zinc-300 hover:bg-gray-50 dark:hover:bg-zinc-800 text-sm font-medium px-4 py-1.5 rounded-md transition"
           >
             Recusar
           </button>
@@ -127,29 +127,29 @@ function WithdrawRow({ item, onResult }: { item: PendingWithdraw; onResult: Push
               e.preventDefault();
             }
           }}
-          className="mt-4 border-t border-gray-100 pt-4 space-y-3"
+          className="mt-4 border-t border-gray-100 dark:border-zinc-800 pt-4 space-y-3"
         >
           <input type="hidden" name="id" value={item._id} />
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Comprovante da transferência <span className="text-gray-400">(opcional)</span>
+            <label className="block text-sm font-medium text-gray-700 dark:text-zinc-300 mb-1">
+              Comprovante da transferência <span className="text-gray-400 dark:text-zinc-500">(opcional)</span>
             </label>
             <input
               name="proof"
               type="text"
               placeholder="Ex.: E2E do PIX, txid da rede, nº do comprovante"
-              className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              className="w-full border border-gray-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-gray-900 dark:text-zinc-100 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Arquivo do comprovante <span className="text-gray-400">(opcional)</span>
+            <label className="block text-sm font-medium text-gray-700 dark:text-zinc-300 mb-1">
+              Arquivo do comprovante <span className="text-gray-400 dark:text-zinc-500">(opcional)</span>
             </label>
             <input
               name="proofFile"
               type="file"
               accept="image/*,application/pdf"
-              className="w-full text-sm text-gray-600 file:mr-3 file:rounded-md file:border-0 file:bg-emerald-50 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-emerald-700 hover:file:bg-emerald-100"
+              className="w-full text-sm text-gray-600 dark:text-zinc-400 file:mr-3 file:rounded-md file:border-0 file:bg-emerald-50 dark:file:bg-emerald-950 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-emerald-700 dark:file:text-emerald-300 hover:file:bg-emerald-100 dark:hover:file:bg-emerald-900"
             />
           </div>
           <div className="flex gap-2">
@@ -163,7 +163,7 @@ function WithdrawRow({ item, onResult }: { item: PendingWithdraw; onResult: Push
             <button
               type="button"
               onClick={() => setMode('idle')}
-              className="text-sm text-gray-500 hover:text-gray-700 px-2"
+              className="text-sm text-gray-500 dark:text-zinc-400 hover:text-gray-700 dark:hover:text-zinc-200 px-2"
             >
               Cancelar
             </button>
@@ -172,16 +172,16 @@ function WithdrawRow({ item, onResult }: { item: PendingWithdraw; onResult: Push
       )}
 
       {mode === 'decline' && (
-        <form action={declineAction} className="mt-4 border-t border-gray-100 pt-4 space-y-3">
+        <form action={declineAction} className="mt-4 border-t border-gray-100 dark:border-zinc-800 pt-4 space-y-3">
           <input type="hidden" name="id" value={item._id} />
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Motivo da recusa</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-zinc-300 mb-1">Motivo da recusa</label>
             <input
               name="reason"
               type="text"
               required
               placeholder="Explique o motivo — o usuário recebe por email"
-              className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              className="w-full border border-gray-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-gray-900 dark:text-zinc-100 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
             />
           </div>
           <div className="flex gap-2">
@@ -195,7 +195,7 @@ function WithdrawRow({ item, onResult }: { item: PendingWithdraw; onResult: Push
             <button
               type="button"
               onClick={() => setMode('idle')}
-              className="text-sm text-gray-500 hover:text-gray-700 px-2"
+              className="text-sm text-gray-500 dark:text-zinc-400 hover:text-gray-700 dark:hover:text-zinc-200 px-2"
             >
               Cancelar
             </button>

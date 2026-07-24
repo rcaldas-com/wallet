@@ -1,6 +1,10 @@
 // Mesmo modelo de papéis do app web (sessão compartilhada).
 export type UserRole = 'admin' | 'wallet' | 'digitar';
 
+// Mesmo campo `theme` do doc `user`, compartilhado com o web — trocar o
+// tema em um app reflete no outro.
+export type ThemePreference = 'light' | 'dark';
+
 export type AuthUser = {
   _id: string;
   name: string;
@@ -13,6 +17,7 @@ export type AuthUser = {
   emailVerified: boolean;
   verificationToken: string | null;
   verificationTokenExpires: Date | null;
+  theme?: ThemePreference;
 };
 
 export type UserSession = {
@@ -22,6 +27,7 @@ export type UserSession = {
   globalRole: 'admin' | null;
   roles: UserRole[];
   isActive: boolean;
+  theme?: ThemePreference;
 };
 
 // --- Stellar wallet domain ---

@@ -50,7 +50,7 @@ export default function DepositForm({
     <>
       <form action={formAction} onSubmit={handleSubmit} className="space-y-4">
         <div>
-          <label htmlFor="userId" className="block text-sm font-medium text-gray-700 mb-1">
+          <label htmlFor="userId" className="block text-sm font-medium text-gray-700 dark:text-zinc-300 mb-1">
             Usuário
           </label>
           <select
@@ -59,7 +59,7 @@ export default function DepositForm({
             required
             value={selectedUser}
             onChange={(e) => setSelectedUser(e.target.value)}
-            className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+            className="w-full border border-gray-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-gray-900 dark:text-zinc-100 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-500"
           >
             <option value="">Selecione…</option>
             {users.map((u) => (
@@ -72,7 +72,7 @@ export default function DepositForm({
 
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label htmlFor="coin" className="block text-sm font-medium text-gray-700 mb-1">
+            <label htmlFor="coin" className="block text-sm font-medium text-gray-700 dark:text-zinc-300 mb-1">
               Moeda
             </label>
             <select
@@ -81,7 +81,7 @@ export default function DepositForm({
               required
               value={coin}
               onChange={(e) => setCoin(e.target.value)}
-              className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              className="w-full border border-gray-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-gray-900 dark:text-zinc-100 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-500"
             >
               {coins.length === 0 && <option value="">Nenhum issuer</option>}
               {coins.map((c) => (
@@ -93,7 +93,7 @@ export default function DepositForm({
           </div>
 
           <div>
-            <label htmlFor="amount" className="block text-sm font-medium text-gray-700 mb-1">
+            <label htmlFor="amount" className="block text-sm font-medium text-gray-700 dark:text-zinc-300 mb-1">
               Quantidade
             </label>
             <input
@@ -105,34 +105,34 @@ export default function DepositForm({
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
               placeholder="0,00"
-              className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              className="w-full border border-gray-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-gray-900 dark:text-zinc-100 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-500"
             />
           </div>
         </div>
 
         <div>
-          <label htmlFor="desc" className="block text-sm font-medium text-gray-700 mb-1">
-            Descrição <span className="text-gray-400">(opcional)</span>
+          <label htmlFor="desc" className="block text-sm font-medium text-gray-700 dark:text-zinc-300 mb-1">
+            Descrição <span className="text-gray-400 dark:text-zinc-500">(opcional)</span>
           </label>
           <input
             id="desc"
             name="desc"
             type="text"
             placeholder="Ex.: transferência recebida em 22/07"
-            className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+            className="w-full border border-gray-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-gray-900 dark:text-zinc-100 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-500"
           />
         </div>
 
         <div>
-          <label htmlFor="receiptFile" className="block text-sm font-medium text-gray-700 mb-1">
-            Comprovante <span className="text-gray-400">(opcional, fica disponível para o usuário)</span>
+          <label htmlFor="receiptFile" className="block text-sm font-medium text-gray-700 dark:text-zinc-300 mb-1">
+            Comprovante <span className="text-gray-400 dark:text-zinc-500">(opcional, fica disponível para o usuário)</span>
           </label>
           <input
             id="receiptFile"
             name="receiptFile"
             type="file"
             accept="image/*,application/pdf"
-            className="w-full text-sm text-gray-600 file:mr-3 file:rounded-md file:border-0 file:bg-emerald-50 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-emerald-700 hover:file:bg-emerald-100"
+            className="w-full text-sm text-gray-600 dark:text-zinc-400 file:mr-3 file:rounded-md file:border-0 file:bg-emerald-50 dark:file:bg-emerald-950 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-emerald-700 dark:file:text-emerald-300 hover:file:bg-emerald-100 dark:hover:file:bg-emerald-900"
           />
         </div>
 
@@ -152,8 +152,8 @@ export default function DepositForm({
               key={t.id}
               className={`p-3 rounded-lg text-sm shadow-lg border ${
                 t.success
-                  ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
-                  : 'bg-red-50 border-red-200 text-red-700'
+                  ? 'bg-emerald-50 border-emerald-200 text-emerald-800 dark:bg-emerald-950 dark:border-emerald-900 dark:text-emerald-200'
+                  : 'bg-red-50 border-red-200 text-red-700 dark:bg-red-950 dark:border-red-900 dark:text-red-200'
               }`}
             >
               {t.message}

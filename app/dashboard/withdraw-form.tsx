@@ -47,7 +47,7 @@ export default function WithdrawForm({ holdings }: { holdings: CoinBalance[] }) 
       <form action={formAction} onSubmit={handleSubmit} className="space-y-3">
         <div className="flex flex-col sm:flex-row gap-3">
         <div className="w-full sm:w-32">
-          <label htmlFor="wcoin" className="block text-sm font-medium text-gray-700 mb-1">
+          <label htmlFor="wcoin" className="block text-sm font-medium text-gray-700 dark:text-zinc-300 mb-1">
             Moeda
           </label>
           <select
@@ -56,7 +56,7 @@ export default function WithdrawForm({ holdings }: { holdings: CoinBalance[] }) 
             required
             value={coin}
             onChange={(e) => setCoin(e.target.value)}
-            className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+            className="w-full border border-gray-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-gray-900 dark:text-zinc-100 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-500"
           >
             {holdings.map((h) => (
               <option key={h.coin} value={h.coin}>
@@ -66,7 +66,7 @@ export default function WithdrawForm({ holdings }: { holdings: CoinBalance[] }) 
           </select>
         </div>
         <div className="w-full sm:flex-1">
-          <label htmlFor="wamount" className="block text-sm font-medium text-gray-700 mb-1">
+          <label htmlFor="wamount" className="block text-sm font-medium text-gray-700 dark:text-zinc-300 mb-1">
             Quantidade
           </label>
           <input
@@ -78,13 +78,13 @@ export default function WithdrawForm({ holdings }: { holdings: CoinBalance[] }) 
             value={amount}
             onChange={(e) => setAmount(e.target.value)}
             placeholder="0,00"
-            className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+            className="w-full border border-gray-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-gray-900 dark:text-zinc-100 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-500"
           />
         </div>
         </div>
 
         <div>
-          <label htmlFor="destination" className="block text-sm font-medium text-gray-700 mb-1">
+          <label htmlFor="destination" className="block text-sm font-medium text-gray-700 dark:text-zinc-300 mb-1">
             {destinationLabel}
           </label>
           <input
@@ -93,19 +93,19 @@ export default function WithdrawForm({ holdings }: { holdings: CoinBalance[] }) 
             type="text"
             required
             placeholder={destinationPlaceholder}
-            className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+            className="w-full border border-gray-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-gray-900 dark:text-zinc-100 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-500"
           />
         </div>
 
         <div>
-          <label htmlFor="wdesc" className="block text-sm font-medium text-gray-700 mb-1">
-            Observação <span className="text-gray-400">(opcional)</span>
+          <label htmlFor="wdesc" className="block text-sm font-medium text-gray-700 dark:text-zinc-300 mb-1">
+            Observação <span className="text-gray-400 dark:text-zinc-500">(opcional)</span>
           </label>
           <input
             id="wdesc"
             name="desc"
             type="text"
-            className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+            className="w-full border border-gray-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-gray-900 dark:text-zinc-100 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-500"
           />
         </div>
 
@@ -125,8 +125,8 @@ export default function WithdrawForm({ holdings }: { holdings: CoinBalance[] }) 
               key={t.id}
               className={`p-3 rounded-lg text-sm shadow-lg border ${
                 t.success
-                  ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
-                  : 'bg-red-50 border-red-200 text-red-700'
+                  ? 'bg-emerald-50 border-emerald-200 text-emerald-800 dark:bg-emerald-950 dark:border-emerald-900 dark:text-emerald-200'
+                  : 'bg-red-50 border-red-200 text-red-700 dark:bg-red-950 dark:border-red-900 dark:text-red-200'
               }`}
             >
               {t.message}

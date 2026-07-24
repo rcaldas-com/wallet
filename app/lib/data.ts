@@ -46,6 +46,7 @@ export async function getUserById(userId: string): Promise<AuthUser | null> {
       emailVerified: user.emailVerified ?? false,
       verificationToken: user.verificationToken || null,
       verificationTokenExpires: user.verificationTokenExpires || null,
+      theme: user.theme === 'dark' || user.theme === 'light' ? user.theme : undefined,
     };
   } catch (error) {
     console.error('Database Error:', error);
