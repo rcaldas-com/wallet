@@ -2,12 +2,14 @@ import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { getCurrentUser, canUseWallet, hasRole } from '@/app/lib/auth';
 import { logoutAction } from '@/app/lib/actions/users';
-import { getUserMovements } from '@/app/lib/data-wallet';
+import { getUserMovements, listIssuerKeys } from '@/app/lib/data-wallet';
 import { listWalletsForReading, readWallets } from '@/app/lib/wallets';
 import type { RawBalance } from '@/app/lib/stellar';
-import { valueBalancesInBrl } from '@/app/lib/quotes';
+import { valueBalancesInBrl, getBrlPrice } from '@/app/lib/quotes';
 import type { CoinBalance } from '@/app/lib/definitions';
+import { getCoinCatalog, sortCoins } from '@/app/lib/coin-catalog';
 import WithdrawForm from './withdraw-form';
+import ConvertForm from './convert-form';
 import ThemeToggle from '@/app/components/theme-toggle';
 
 export const dynamic = 'force-dynamic';
@@ -45,11 +47,26 @@ export default async function DashboardPage() {
   // operacional de XLM (hideOperationalXlmReserve) — poeira sem cotação
   // nunca some (valueBalancesInBrl mantém moedas sem preço mesmo abaixo do
   // mínimo, pra não esconder um saldo real por falta de cotação).
-  const { coins, totalBrl } = await valueBalancesInBrl(aggregated, 5);
-  coins.sort((a: CoinBalance, b: CoinBalance) => b.valueBrl - a.valueBrl);
+  const { coins: unsortedCoins, totalBrl } = await valueBalancesInBrl(aggregated, 5);
+  const coins: CoinBalance[] = sortCoins(unsortedCoins);
 
   const movements = await getUserMovements(user._id);
   const isEmpty = coins.length === 0 && movements.length === 0;
+
+  // Catálogo completo (issuers + XLM) e o preço unitário em BRL de cada um —
+  // alimenta o select "Para" da conversão e a prévia "≈ X moeda", inclusive
+  // pra moedas que o usuário ainda não tem.
+  const catalog = await getCoinCatalog();
+  const issuers = await listIssuerKeys();
+  const issuerByName = new Map(issuers.map((i) => [i.name, i.publicKey]));
+  const catalogSymbols = [...catalog.priority, ...catalog.others].map((c) => c.symbol);
+  const priceEntries = await Promise.all(
+    catalogSymbols.map(async (symbol) => [symbol, await getBrlPrice(symbol, issuerByName.get(symbol))] as const),
+  );
+  const priceMap: Record<string, number> = {};
+  for (const [symbol, price] of priceEntries) {
+    if (price !== null) priceMap[symbol] = price;
+  }
 
   return (
     <main className="min-h-screen bg-gray-50 dark:bg-zinc-950">
@@ -141,6 +158,8 @@ export default async function DashboardPage() {
               )}
             </section>
 
+            <ConvertForm holdings={coins} catalog={catalog} priceMap={priceMap} />
+
             {/* Solicitar saque */}
             <section className="bg-white dark:bg-zinc-900 rounded-xl shadow-sm border border-gray-100 dark:border-zinc-800 p-5">
               <h2 className="text-lg font-semibold text-gray-800 dark:text-zinc-100 mb-1">Solicitar saque</h2>
@@ -175,17 +194,22 @@ export default async function DashboardPage() {
                                 <span className="inline-flex items-center gap-1 text-emerald-700 dark:text-emerald-400">
                                   <span className="text-lg leading-none">↓</span> Depósito
                                 </span>
-                              ) : (
+                              ) : m.kind === 'withdraw' ? (
                                 <span className="inline-flex items-center gap-1 text-amber-700 dark:text-amber-400">
                                   <span className="text-lg leading-none">↑</span> Saque
                                   <WithdrawBadge status={m.status} />
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 text-sky-700 dark:text-sky-400">
+                                  <span className="text-lg leading-none">🔄</span> Conversão
                                 </span>
                               )}
                             </td>
                             <td className="px-4 py-3 font-medium text-gray-800 dark:text-zinc-100">
                               <div>
-                                {m.kind === 'deposit' ? '+' : '−'}
-                                {num(Number(m.amount))} {m.coin}
+                                {m.kind === 'conversion'
+                                  ? `${num(Number(m.amount))} ${m.coin} → ${num(Number(m.amountTo))} ${m.toCoin}`
+                                  : `${m.kind === 'deposit' ? '+' : '−'}${num(Number(m.amount))} ${m.coin}`}
                               </div>
                               {m.fileUrl && (
                                 <a

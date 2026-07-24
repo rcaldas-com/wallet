@@ -3,22 +3,27 @@
 import { useActionState, useEffect, useState } from 'react';
 import { createDeposit, type DepositState } from '@/app/lib/actions/deposit';
 import type { UserOption } from '@/app/lib/definitions';
+import type { CoinCatalogEntry } from '@/app/lib/coin-catalog';
 
 type Toast = { id: number; message: string; success: boolean };
 
 const initialState: DepositState = { success: false, message: '' };
 
+function optionLabel(c: CoinCatalogEntry) {
+  return c.displayName ? `${c.symbol} (${c.displayName})` : c.symbol;
+}
+
 export default function DepositForm({
   users,
-  coins,
+  catalog,
 }: {
   users: UserOption[];
-  coins: string[];
+  catalog: { priority: CoinCatalogEntry[]; others: CoinCatalogEntry[] };
 }) {
   const [state, formAction, isPending] = useActionState(createDeposit, initialState);
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [selectedUser, setSelectedUser] = useState('');
-  const [coin, setCoin] = useState(coins[0] || '');
+  const [coin, setCoin] = useState(catalog.priority[0]?.symbol || catalog.others[0]?.symbol || '');
   const [amount, setAmount] = useState('');
 
   // Empurra cada resultado da action para a lista de toasts fixos.
@@ -83,12 +88,27 @@ export default function DepositForm({
               onChange={(e) => setCoin(e.target.value)}
               className="w-full border border-gray-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-gray-900 dark:text-zinc-100 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-500"
             >
-              {coins.length === 0 && <option value="">Nenhum issuer</option>}
-              {coins.map((c) => (
-                <option key={c} value={c}>
-                  {c}
-                </option>
-              ))}
+              {catalog.priority.length === 0 && catalog.others.length === 0 && (
+                <option value="">Nenhum issuer</option>
+              )}
+              {catalog.priority.length > 0 && (
+                <optgroup label="Principais">
+                  {catalog.priority.map((c) => (
+                    <option key={c.symbol} value={c.symbol}>
+                      {optionLabel(c)}
+                    </option>
+                  ))}
+                </optgroup>
+              )}
+              {catalog.others.length > 0 && (
+                <optgroup label="Outras moedas">
+                  {catalog.others.map((c) => (
+                    <option key={c.symbol} value={c.symbol}>
+                      {optionLabel(c)}
+                    </option>
+                  ))}
+                </optgroup>
+              )}
             </select>
           </div>
 

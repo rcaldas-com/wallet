@@ -1,7 +1,8 @@
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { getCurrentUser, hasRole } from '@/app/lib/auth';
-import { listUsers, listIssuerNames } from '@/app/lib/data-wallet';
+import { listUsers } from '@/app/lib/data-wallet';
+import { getCoinCatalog } from '@/app/lib/coin-catalog';
 import DepositForm from './deposit-form';
 import ThemeToggle from '@/app/components/theme-toggle';
 
@@ -10,7 +11,13 @@ export default async function AdminDepositPage() {
   if (!user) redirect('/login');
   if (!hasRole(user, 'admin')) redirect('/dashboard');
 
-  const [users, coins] = await Promise.all([listUsers(), listIssuerNames()]);
+  const [users, fullCatalog] = await Promise.all([listUsers(), getCoinCatalog()]);
+  // XLM não tem issuer — depósito só emite tokens próprios, não faz sentido
+  // "depositar" o ativo nativo por aqui.
+  const catalog = {
+    priority: fullCatalog.priority.filter((c) => c.symbol !== 'XLM'),
+    others: fullCatalog.others,
+  };
 
   return (
     <main className="min-h-screen bg-gray-50 dark:bg-zinc-950">
@@ -33,7 +40,7 @@ export default async function AdminDepositPage() {
         </p>
 
         <div className="bg-white dark:bg-zinc-900 rounded-lg shadow p-6">
-          <DepositForm users={users} coins={coins} />
+          <DepositForm users={users} catalog={catalog} />
         </div>
       </div>
     </main>

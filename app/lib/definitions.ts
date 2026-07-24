@@ -51,6 +51,7 @@ export type IssuerDoc = {
   public_key: string;
   secret?: string | null; // secret do issuer — server-only
   mirror?: string | null;
+  displayName?: string | null; // nome amigável (ex.: "Reais - R$"), exibido ao lado do símbolo
 };
 
 // Saldo de uma moeda numa conta, já com valor convertido.
@@ -70,10 +71,10 @@ export type FileAttachment = {
   createdAt: Date;
 };
 
-// Movimentação (depósito ou saque) exibida no histórico.
+// Movimentação (depósito, saque ou conversão) exibida no histórico.
 export type Movement = {
   _id: string;
-  kind: 'deposit' | 'withdraw';
+  kind: 'deposit' | 'withdraw' | 'conversion';
   amount: string;
   coin: string;
   desc?: string | null;
@@ -81,6 +82,9 @@ export type Movement = {
   timestamp: Date;
   fileUrl?: string | null;
   fileName?: string | null;
+  // Só preenchidos quando kind === 'conversion' (moeda/valor recebidos).
+  toCoin?: string | null;
+  amountTo?: string | null;
 };
 
 // Usuário exibido no seletor do admin.

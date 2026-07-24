@@ -448,6 +448,194 @@ export async function withdrawCoin(params: {
   }
 }
 
+// --- Conversão: troca custodiada entre moedas do usuário ---
+//
+// Sem path payment/AMM/DEX: como somos o issuer de todos os tokens próprios
+// e a MAIN_WALLET já é o lastro real de XLM, a troca é feita devolvendo a
+// moeda de saída ao issuer dela (ou pra MAIN_WALLET, se for XLM) e emitindo
+// a moeda de entrada do issuer dela (ou da MAIN_WALLET, se for XLM) — nos
+// valores já calculados pela cotação em quotes.ts (essa função só executa a
+// mecânica, não calcula preço, pra evitar import circular com quotes.ts).
+
+export type ConversionResult = { ok: true } | { ok: false; error: string };
+
+export async function executeConversion(params: {
+  userId: string;
+  fromCoin: string;
+  toCoin: string;
+  amountFrom: string;
+  amountTo: string;
+}): Promise<ConversionResult> {
+  const { userId, fromCoin, toCoin, amountFrom, amountTo } = params;
+
+  const wallet = await getUserMainWallet(userId);
+  if (!wallet) {
+    return { ok: false, error: 'Usuário não possui carteira custodiada.' };
+  }
+  if (!wallet.secret) {
+    return { ok: false, error: 'Carteira não custodiada — conversão on-chain indisponível.' };
+  }
+  const userKp = Keypair.fromSecret(wallet.secret);
+
+  const server = getServer();
+  let account;
+  try {
+    account = await server.loadAccount(wallet.key);
+  } catch (err) {
+    if (isNotFound(err)) {
+      return { ok: false, error: 'A conta Stellar do usuário não existe.' };
+    }
+    console.error('Erro ao carregar conta do usuário na conversão:', err);
+    return { ok: false, error: 'Falha ao consultar a conta do usuário.' };
+  }
+
+  const fromIsXlm = fromCoin === 'XLM';
+  const toIsXlm = toCoin === 'XLM';
+
+  let fromIssuer: IssuerDoc | null = null;
+  if (!fromIsXlm) {
+    fromIssuer = await loadIssuer(fromCoin);
+    if (!fromIssuer) {
+      return { ok: false, error: `Issuer "${fromCoin}" não encontrado.` };
+    }
+  }
+  let toIssuer: IssuerDoc | null = null;
+  if (!toIsXlm) {
+    toIssuer = await loadIssuer(toCoin);
+    if (!toIssuer || !toIssuer.secret) {
+      return { ok: false, error: `Issuer "${toCoin}" não encontrado ou sem chave.` };
+    }
+  }
+
+  // 1) Confere saldo disponível da moeda de saída (XLM desconta a reserva
+  // operacional, mesma regra de hideOperationalXlmReserve).
+  if (fromIsXlm) {
+    const nativeBalance = account.balances.find((b) => b.asset_type === 'native');
+    const available = nativeBalance ? parseFloat(nativeBalance.balance) - XLM_OPERATIONAL_RESERVE : 0;
+    if (available < Number(amountFrom)) {
+      return { ok: false, error: `Saldo insuficiente: disponível ${Math.max(available, 0)} XLM.` };
+    }
+  } else {
+    let available: number | null = null;
+    for (const b of account.balances) {
+      if ('asset_code' in b && b.asset_code === fromCoin && b.asset_issuer === fromIssuer!.public_key) {
+        available = parseFloat(b.balance);
+      }
+    }
+    if (available === null) {
+      return { ok: false, error: 'A conta do usuário não confia neste token.' };
+    }
+    if (available < Number(amountFrom)) {
+      return { ok: false, error: `Saldo insuficiente: disponível ${available} ${fromCoin}.` };
+    }
+  }
+
+  // 2) Confere se a contraparte cobre a moeda de entrada — só importa pro
+  // XLM (token próprio a gente sempre pode emitir, sem limite de estoque).
+  // Checado ANTES de qualquer operação on-chain: não dá pra tirar a moeda
+  // de saída do usuário sem ter certeza que a de entrada tem cobertura.
+  if (toIsXlm) {
+    const main = getMainWallet();
+    let mainAccount;
+    try {
+      mainAccount = await server.loadAccount(main.publicKey());
+    } catch (err) {
+      console.error('Erro ao consultar saldo da MAIN_WALLET na conversão:', err);
+      return { ok: false, error: 'Falha ao verificar a carteira principal. Tente novamente.' };
+    }
+    const nativeBalance = mainAccount.balances.find((b) => b.asset_type === 'native');
+    const mainAvailable = nativeBalance ? parseFloat(nativeBalance.balance) - XLM_OPERATIONAL_RESERVE : 0;
+    if (mainAvailable < Number(amountTo)) {
+      return {
+        ok: false,
+        error: 'Saldo insuficiente na carteira principal para cobrir essa conversão agora — tente um valor menor.',
+      };
+    }
+  }
+
+  // 3) Perna de saída: usuário devolve a moeda ao issuer, ou manda XLM real
+  // pra MAIN_WALLET.
+  const buildOutgoing = async () => {
+    const acc = await loadAccountWithRetry(server, wallet.key);
+    const fee = await baseFee(server);
+    const tx = new TransactionBuilder(acc, { fee, networkPassphrase: NETWORK_PASSPHRASE })
+      .addOperation(
+        fromIsXlm
+          ? Operation.payment({ destination: getMainWallet().publicKey(), asset: Asset.native(), amount: amountFrom })
+          : Operation.payment({
+              destination: fromIssuer!.public_key,
+              asset: new Asset(fromIssuer!.name, fromIssuer!.public_key),
+              amount: amountFrom,
+            }),
+      )
+      .setTimeout(60)
+      .build();
+    tx.sign(userKp);
+    return tx;
+  };
+
+  try {
+    await server.submitTransaction(await buildOutgoing());
+  } catch (err) {
+    if (isInsufficientXlm(err)) {
+      try {
+        await topUpReserve(wallet.key);
+        await server.submitTransaction(await buildOutgoing());
+      } catch (retryErr) {
+        console.error('Erro na perna de saída da conversão após recarregar a conta:', retryErr);
+        return { ok: false, error: 'Falha ao processar a conversão. Nada foi debitado.' };
+      }
+    } else {
+      console.error('Erro na perna de saída da conversão:', err);
+      return { ok: false, error: 'Falha ao processar a conversão. Nada foi debitado.' };
+    }
+  }
+
+  // 4) Perna de entrada: issuer emite a moeda nova pro usuário, ou a
+  // MAIN_WALLET manda XLM real. A partir daqui a perna de saída já foi
+  // confirmada — uma falha aqui vira um estado parcial que precisa de
+  // reconciliação manual (logado como erro crítico, não dá pra desfazer a
+  // perna anterior automaticamente).
+  const toKeypair = toIsXlm ? getMainWallet() : Keypair.fromSecret(toIssuer!.secret!);
+  const toAsset = toIsXlm ? Asset.native() : new Asset(toIssuer!.name, toIssuer!.public_key);
+
+  const buildIncoming = async () => {
+    const acc = await loadAccountWithRetry(server, toKeypair.publicKey());
+    const fee = await baseFee(server);
+    const tx = new TransactionBuilder(acc, { fee, networkPassphrase: NETWORK_PASSPHRASE })
+      .addOperation(Operation.payment({ destination: wallet.key, asset: toAsset, amount: amountTo }))
+      .setTimeout(60)
+      .build();
+    tx.sign(toKeypair);
+    return tx;
+  };
+
+  try {
+    await server.submitTransaction(await buildIncoming());
+    return { ok: true };
+  } catch (err) {
+    const codes = operationCodes(err);
+    if (codes.includes('op_no_trust') && !toIsXlm) {
+      try {
+        await setTrustlines(userKp, [toCoin]);
+        await server.submitTransaction(await buildIncoming());
+        return { ok: true };
+      } catch (retryErr) {
+        console.error(
+          `CRÍTICO: conversão parcial — usuário ${userId} já perdeu ${amountFrom} ${fromCoin} mas não recebeu ${amountTo} ${toCoin} (falha após criar trustline):`,
+          retryErr,
+        );
+        return { ok: false, error: 'A conversão falhou no meio do caminho — contate o suporte com os detalhes.' };
+      }
+    }
+    console.error(
+      `CRÍTICO: conversão parcial — usuário ${userId} já perdeu ${amountFrom} ${fromCoin} mas não recebeu ${amountTo} ${toCoin}:`,
+      err,
+    );
+    return { ok: false, error: 'A conversão falhou no meio do caminho — contate o suporte com os detalhes.' };
+  }
+}
+
 // --- Preço via a própria rede Stellar (fallback para ativos sem par nas
 // exchanges centralizadas, ex.: AQUA e outros tokens do ecossistema) ---
 

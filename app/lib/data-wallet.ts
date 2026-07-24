@@ -229,6 +229,25 @@ export async function recordDeposit(params: {
   });
 }
 
+// Registra uma conversão no histórico (coleção `conversion`).
+export async function recordConversion(params: {
+  userId: string;
+  fromCoin: string;
+  amountFrom: string;
+  toCoin: string;
+  amountTo: string;
+}): Promise<void> {
+  const client = await clientPromise;
+  await client.db().collection('conversion').insertOne({
+    user: new ObjectId(params.userId),
+    fromCoin: params.fromCoin,
+    amountFrom: params.amountFrom,
+    toCoin: params.toCoin,
+    amountTo: params.amountTo,
+    timestamp: new Date(),
+  });
+}
+
 // Chaves públicas de todas as wallets de um usuário (custodiadas + somente leitura).
 export async function getUserWalletKeys(userId: string): Promise<
   { key: string; type: string; readOnly: boolean; label: string | null }[]
@@ -253,9 +272,10 @@ export async function getUserMovements(userId: string, limit = 100): Promise<Mov
   const db = client.db();
   const uid = new ObjectId(userId);
 
-  const [deposits, withdraws] = await Promise.all([
+  const [deposits, withdraws, conversions] = await Promise.all([
     db.collection('deposit').find({ user: uid }).sort({ timestamp: -1 }).limit(limit).toArray(),
     db.collection('withdraw').find({ user: uid }).sort({ timestamp: -1 }).limit(limit).toArray(),
+    db.collection('conversion').find({ user: uid }).sort({ timestamp: -1 }).limit(limit).toArray(),
   ]);
 
   const movements: Movement[] = [
@@ -280,6 +300,19 @@ export async function getUserMovements(userId: string, limit = 100): Promise<Mov
       timestamp: w.timestamp ?? w._id.getTimestamp(),
       fileUrl: (w.proofFile as FileAttachment | null)?.url ?? null,
       fileName: (w.proofFile as FileAttachment | null)?.originalName ?? null,
+    })),
+    ...conversions.map((c) => ({
+      _id: c._id.toString(),
+      kind: 'conversion' as const,
+      amount: String(c.amountFrom),
+      coin: c.fromCoin,
+      toCoin: c.toCoin as string,
+      amountTo: String(c.amountTo),
+      desc: null,
+      status: null,
+      timestamp: c.timestamp ?? c._id.getTimestamp(),
+      fileUrl: null,
+      fileName: null,
     })),
   ];
 
