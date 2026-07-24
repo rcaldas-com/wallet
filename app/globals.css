@@ -3,6 +3,10 @@
 :root {
   --background: #ffffff;
   --foreground: #171717;
+  /* Sem isso, alguns navegadores estilizam controles nativos (select,
+     checkbox) no escuro quando o sistema está em dark mode, mesmo com
+     todo o resto da página em tema claro fixo. */
+  color-scheme: light;
 }
 
 @theme inline {
@@ -12,12 +16,12 @@
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
+/* O app não tem tema escuro (todas as telas usam classes Tailwind fixas de
+   tema claro, ex.: bg-gray-50/bg-white/text-gray-900) — sem um bloco de
+   dark mode aqui, inputs/selects sem cor de texto própria herdavam
+   `color: var(--foreground)` do body, que ficava quase branco quando o
+   celular está no modo escuro do sistema, sobre um fundo branco fixo:
+   texto ilegível em qualquer input/select sem classe de cor explícita. */
 
 body {
   background: var(--background);
