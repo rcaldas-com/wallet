@@ -3,6 +3,7 @@
 import { useActionState, useCallback, useEffect, useState } from 'react';
 import { confirmWithdraw, declineWithdraw, type WithdrawState } from '@/app/lib/actions/withdraw';
 import type { PendingWithdraw } from '@/app/lib/definitions';
+import Spinner from '@/app/components/spinner';
 
 type Toast = { id: number; message: string; success: boolean };
 type PushToast = (message: string, success: boolean) => void;
@@ -156,8 +157,9 @@ function WithdrawRow({ item, onResult }: { item: PendingWithdraw; onResult: Push
             <button
               type="submit"
               disabled={busy}
-              className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white text-sm font-medium px-4 py-1.5 rounded-md transition"
+              className="inline-flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white text-sm font-medium px-4 py-1.5 rounded-md transition"
             >
+              {confirming && <Spinner className="h-3.5 w-3.5" />}
               {confirming ? 'Processando…' : 'Confirmar'}
             </button>
             <button
@@ -188,8 +190,9 @@ function WithdrawRow({ item, onResult }: { item: PendingWithdraw; onResult: Push
             <button
               type="submit"
               disabled={busy}
-              className="bg-red-600 hover:bg-red-700 disabled:opacity-60 text-white text-sm font-medium px-4 py-1.5 rounded-md transition"
+              className="inline-flex items-center gap-1.5 bg-red-600 hover:bg-red-700 disabled:opacity-60 text-white text-sm font-medium px-4 py-1.5 rounded-md transition"
             >
+              {declining && <Spinner className="h-3.5 w-3.5" />}
               {declining ? 'Enviando…' : 'Recusar pedido'}
             </button>
             <button

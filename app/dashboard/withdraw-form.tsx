@@ -1,9 +1,10 @@
 'use client';
 
-import { useActionState, useEffect, useState } from 'react';
+import { useActionState, useEffect, useRef, useState } from 'react';
 import { requestWithdraw, type WithdrawState } from '@/app/lib/actions/withdraw';
 import type { CoinBalance } from '@/app/lib/definitions';
 import type { CoinCatalogEntry } from '@/app/lib/coin-catalog';
+import Spinner from '@/app/components/spinner';
 
 type Toast = { id: number; message: string; success: boolean };
 
@@ -28,6 +29,7 @@ export default function WithdrawForm({
   const [coin, setCoin] = useState(holdings[0]?.coin || '');
   const [amount, setAmount] = useState('');
   const [totalBrl, setTotalBrl] = useState('');
+  const formRef = useRef<HTMLFormElement>(null);
 
   useEffect(() => {
     if (state.message) {
@@ -36,6 +38,9 @@ export default function WithdrawForm({
       if (state.success) {
         setAmount('');
         setTotalBrl('');
+        // destination/desc são não controlados — sem isso ficavam com o
+        // destino do saque que acabou de ser pedido.
+        formRef.current?.reset();
       }
       const timer = setTimeout(() => {
         setToasts((prev) => prev.filter((t) => t.id !== id));
@@ -117,7 +122,7 @@ export default function WithdrawForm({
 
   return (
     <>
-      <form action={formAction} onSubmit={handleSubmit} className="space-y-3">
+      <form ref={formRef} action={formAction} onSubmit={handleSubmit} className="space-y-3">
         <div className="grid grid-cols-1 sm:grid-cols-[minmax(11rem,1.3fr)_minmax(7rem,1fr)_minmax(7rem,1fr)] gap-3">
         <div>
           <label htmlFor="wcoin" className="block text-sm font-medium text-gray-700 dark:text-zinc-300 mb-1">
@@ -208,8 +213,9 @@ export default function WithdrawForm({
         <button
           type="submit"
           disabled={isPending}
-          className="w-full sm:w-auto bg-amber-500 hover:bg-amber-600 disabled:opacity-60 text-white font-medium px-5 py-2 rounded-md transition"
+          className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-amber-500 hover:bg-amber-600 disabled:opacity-60 text-white font-medium px-5 py-2 rounded-md transition"
         >
+          {isPending && <Spinner />}
           {isPending ? 'Enviando…' : 'Solicitar saque'}
         </button>
       </form>

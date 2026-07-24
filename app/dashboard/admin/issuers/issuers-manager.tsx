@@ -1,12 +1,13 @@
 'use client';
 
-import { useActionState, useCallback, useEffect, useState, useTransition } from 'react';
+import { useActionState, useCallback, useEffect, useRef, useState, useTransition } from 'react';
 import {
   createIssuer,
   updateIssuerDisplay,
   provisionIssuerAccount,
   type IssuerActionState,
 } from '@/app/lib/actions/issuers';
+import Spinner from '@/app/components/spinner';
 
 export type IssuerRow = {
   name: string;
@@ -76,9 +77,13 @@ export default function IssuersManager({ rows }: { rows: IssuerRow[] }) {
 
 function NewIssuerForm({ onResult }: { onResult: PushToast }) {
   const [state, formAction, isPending] = useActionState(createIssuer, initialState);
+  const formRef = useRef<HTMLFormElement>(null);
 
   useEffect(() => {
     if (state.message) onResult(state.message, state.success);
+    // Limpa o formulário no sucesso — sem isso a secret que acabou de ser
+    // cadastrada ficava exposta no campo, arriscando recadastro por engano.
+    if (state.success) formRef.current?.reset();
   }, [state, onResult]);
 
   return (
@@ -89,7 +94,7 @@ function NewIssuerForm({ onResult }: { onResult: PushToast }) {
         a chave pública é derivada dela. A conta é criada e financiada a partir da carteira
         principal.
       </p>
-      <form action={formAction} className="space-y-3">
+      <form ref={formRef} action={formAction} className="space-y-3">
         <div className="grid sm:grid-cols-2 gap-3">
           <div>
             <label htmlFor="name" className={labelClass}>Código</label>
@@ -119,8 +124,9 @@ function NewIssuerForm({ onResult }: { onResult: PushToast }) {
         <button
           type="submit"
           disabled={isPending}
-          className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white font-medium px-5 py-2 rounded-md transition"
+          className="inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white font-medium px-5 py-2 rounded-md transition"
         >
+          {isPending && <Spinner />}
           {isPending ? 'Cadastrando…' : 'Cadastrar issuer'}
         </button>
       </form>
@@ -185,8 +191,9 @@ function IssuerCard({ row, onResult }: { row: IssuerRow; onResult: PushToast }) 
               type="button"
               onClick={handleProvision}
               disabled={provisioning}
-              className="text-sm border border-emerald-600 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950 disabled:opacity-60 px-3 py-1.5 rounded-md transition"
+              className="inline-flex items-center gap-1.5 text-sm border border-emerald-600 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950 disabled:opacity-60 px-3 py-1.5 rounded-md transition"
             >
+              {provisioning && <Spinner className="h-3.5 w-3.5" />}
               {provisioning ? 'Provisionando…' : 'Provisionar'}
             </button>
           )}
@@ -215,8 +222,9 @@ function IssuerCard({ row, onResult }: { row: IssuerRow; onResult: PushToast }) 
             <button
               type="submit"
               disabled={isPending}
-              className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white text-sm font-medium px-4 py-1.5 rounded-md transition"
+              className="inline-flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white text-sm font-medium px-4 py-1.5 rounded-md transition"
             >
+              {isPending && <Spinner className="h-3.5 w-3.5" />}
               {isPending ? 'Salvando…' : 'Salvar'}
             </button>
           </div>

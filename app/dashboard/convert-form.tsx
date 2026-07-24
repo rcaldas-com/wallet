@@ -4,6 +4,7 @@ import { useActionState, useEffect, useState } from 'react';
 import { requestConversion, type ConvertState } from '@/app/lib/actions/convert';
 import type { CoinBalance } from '@/app/lib/definitions';
 import type { CoinCatalogEntry } from '@/app/lib/coin-catalog';
+import Spinner from '@/app/components/spinner';
 
 type Toast = { id: number; message: string; success: boolean };
 
@@ -186,8 +187,9 @@ export default function ConvertForm({
         <button
           type="submit"
           disabled={isPending || !effectiveToCoin}
-          className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white font-medium px-5 py-2 rounded-md transition"
+          className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white font-medium px-5 py-2 rounded-md transition"
         >
+          {isPending && <Spinner />}
           {isPending ? 'Convertendo…' : 'Converter'}
         </button>
       </form>

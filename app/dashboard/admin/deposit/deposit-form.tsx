@@ -1,9 +1,10 @@
 'use client';
 
-import { useActionState, useEffect, useState } from 'react';
+import { useActionState, useEffect, useRef, useState } from 'react';
 import { createDeposit, type DepositState } from '@/app/lib/actions/deposit';
 import type { UserOption } from '@/app/lib/definitions';
 import type { CoinCatalogEntry } from '@/app/lib/coin-catalog';
+import Spinner from '@/app/components/spinner';
 
 type Toast = { id: number; message: string; success: boolean };
 
@@ -25,6 +26,7 @@ export default function DepositForm({
   const [selectedUser, setSelectedUser] = useState('');
   const [coin, setCoin] = useState(catalog.priority[0]?.symbol || catalog.others[0]?.symbol || '');
   const [amount, setAmount] = useState('');
+  const formRef = useRef<HTMLFormElement>(null);
 
   // Empurra cada resultado da action para a lista de toasts fixos.
   useEffect(() => {
@@ -37,6 +39,18 @@ export default function DepositForm({
       return () => clearTimeout(timer);
     }
   }, [state]);
+
+  // Limpa o formulário depois de um depósito bem-sucedido — sem isso, os
+  // dados do depósito que acabou de acontecer ficavam nos campos, arriscando
+  // reenvio acidental do mesmo depósito. Mantém a moeda selecionada (admin
+  // costuma registrar vários depósitos seguidos na mesma moeda).
+  useEffect(() => {
+    if (state.success) {
+      setSelectedUser('');
+      setAmount('');
+      formRef.current?.reset();
+    }
+  }, [state.success]);
 
   const selectedUserName = users.find((u) => u._id === selectedUser)?.name;
 
@@ -53,7 +67,7 @@ export default function DepositForm({
 
   return (
     <>
-      <form action={formAction} onSubmit={handleSubmit} className="space-y-4">
+      <form ref={formRef} action={formAction} onSubmit={handleSubmit} className="space-y-4">
         <div>
           <label htmlFor="userId" className="block text-sm font-medium text-gray-700 dark:text-zinc-300 mb-1">
             Usuário
@@ -159,8 +173,9 @@ export default function DepositForm({
         <button
           type="submit"
           disabled={isPending}
-          className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white font-medium py-2.5 rounded-md transition"
+          className="w-full inline-flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white font-medium py-2.5 rounded-md transition"
         >
+          {isPending && <Spinner />}
           {isPending ? 'Processando…' : 'Registrar depósito'}
         </button>
       </form>
