@@ -1,6 +1,6 @@
 'use client';
 
-import { useActionState, useEffect, useState, useTransition } from 'react';
+import { useActionState, useCallback, useEffect, useState, useTransition } from 'react';
 import {
   createIssuer,
   updateIssuerDisplay,
@@ -29,11 +29,13 @@ const labelClass = 'block text-sm font-medium text-gray-700 dark:text-zinc-300 m
 export default function IssuersManager({ rows }: { rows: IssuerRow[] }) {
   const [toasts, setToasts] = useState<Toast[]>([]);
 
-  const pushToast: PushToast = (message, success) => {
+  // Memoizado: sem isso, cada re-render recria pushToast, muda a identidade da
+  // dep `onResult` dos useEffect filhos e re-dispara o mesmo toast em loop.
+  const pushToast = useCallback<PushToast>((message, success) => {
     const id = Date.now() + Math.random();
     setToasts((prev) => [...prev, { id, message, success }]);
     setTimeout(() => setToasts((prev) => prev.filter((t) => t.id !== id)), 6000);
-  };
+  }, []);
 
   return (
     <div className="space-y-6">
@@ -57,7 +59,7 @@ export default function IssuersManager({ rows }: { rows: IssuerRow[] }) {
           {toasts.map((t) => (
             <div
               key={t.id}
-              className={`p-3 rounded-lg text-sm shadow-lg border ${
+              className={`p-3 rounded-lg text-sm shadow-lg border break-words ${
                 t.success
                   ? 'bg-emerald-50 border-emerald-200 text-emerald-800 dark:bg-emerald-950 dark:border-emerald-900 dark:text-emerald-200'
                   : 'bg-red-50 border-red-200 text-red-700 dark:bg-red-950 dark:border-red-900 dark:text-red-200'
