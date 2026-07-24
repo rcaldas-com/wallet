@@ -19,10 +19,12 @@ export const metadata: Metadata = {
   description: "Carteira digital RCaldas",
   icons: {
     // `icons` explícito aqui substitui por completo o ícone que o Next.js
-    // detectaria sozinho a partir de app/icon.tsx — sem essa linha, o
+    // detectaria sozinho a partir de app/icon.svg — sem essa linha, o
     // <link rel="icon"> simplesmente não era gerado (só o apple-touch-icon).
-    icon: "/icon",
-    apple: "/logo.png",
+    // Saquinho de dinheiro (mesmo motivo visual do "💰 Wallet" nos cabeçalhos),
+    // desenhado como SVG estático — sem fonte/rede envolvida.
+    icon: "/icon.svg",
+    apple: "/apple-icon.png",
   },
   appleWebApp: {
     capable: true,
