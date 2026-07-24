@@ -17,7 +17,7 @@ export default async function AdminWithdrawPage() {
     <main className="min-h-screen bg-gray-50">
       <header className="bg-emerald-600 text-white shadow">
         <div className="max-w-4xl mx-auto px-4 py-4 flex items-center justify-between">
-          <h1 className="text-xl font-bold">💰 Wallet · Admin</h1>
+          <Link href="/" className="text-xl font-bold hover:opacity-90 transition">💰 Wallet · Admin</Link>
           <div className="flex items-center gap-3">
             <Link
               href="/dashboard/admin/deposit"

@@ -15,7 +15,7 @@ export default async function AdminDepositPage() {
     <main className="min-h-screen bg-gray-50">
       <header className="bg-emerald-600 text-white shadow">
         <div className="max-w-4xl mx-auto px-4 py-4 flex items-center justify-between">
-          <h1 className="text-xl font-bold">💰 Wallet · Admin</h1>
+          <Link href="/" className="text-xl font-bold hover:opacity-90 transition">💰 Wallet · Admin</Link>
           <Link href="/dashboard" className="text-sm bg-emerald-700 hover:bg-emerald-800 px-3 py-1 rounded transition">
             Voltar
           </Link>

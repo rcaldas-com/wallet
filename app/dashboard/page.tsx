@@ -40,7 +40,11 @@ export default async function DashboardPage() {
   }
   const aggregated = [...byCoin.values()];
 
-  const { coins, totalBrl } = await valueBalancesInBrl(aggregated);
+  // Saldos residuais (< R$5) são ignorados, mesmo tratamento dado à reserva
+  // operacional de XLM (hideOperationalXlmReserve) — poeira sem cotação
+  // nunca some (valueBalancesInBrl mantém moedas sem preço mesmo abaixo do
+  // mínimo, pra não esconder um saldo real por falta de cotação).
+  const { coins, totalBrl } = await valueBalancesInBrl(aggregated, 5);
   coins.sort((a: CoinBalance, b: CoinBalance) => b.valueBrl - a.valueBrl);
 
   const movements = await getUserMovements(user._id);
@@ -50,7 +54,7 @@ export default async function DashboardPage() {
     <main className="min-h-screen bg-gray-50">
       <header className="bg-emerald-600 text-white shadow">
         <div className="max-w-4xl mx-auto px-4 py-4 flex items-center justify-between">
-          <h1 className="text-xl font-bold">💰 Wallet</h1>
+          <Link href="/" className="text-xl font-bold hover:opacity-90 transition">💰 Wallet</Link>
           <div className="flex items-center gap-4">
             {isAdmin && (
               <>

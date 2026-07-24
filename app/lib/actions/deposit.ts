@@ -84,7 +84,9 @@ export async function createDeposit(
     const user = await getUserName(userId);
     if (user) {
       const reads = await readWallets(await listWalletsForReading({ userId }));
-      const { totalBrl } = await valueBalancesInBrl(reads.flatMap((r) => r.balances));
+      // Mesmo corte de poeira (< R$5) usado no dashboard, pra "saldo total"
+      // do email bater com o que o usuário vê no app.
+      const { totalBrl } = await valueBalancesInBrl(reads.flatMap((r) => r.balances), 5);
       await sendDepositEmail({
         email: user.email,
         name: user.name,

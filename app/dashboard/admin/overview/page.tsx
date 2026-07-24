@@ -20,7 +20,7 @@ export default async function AdminOverviewPage() {
     <main className="min-h-screen bg-gray-50">
       <header className="bg-emerald-600 text-white shadow">
         <div className="max-w-5xl mx-auto px-4 py-4 flex items-center justify-between">
-          <h1 className="text-xl font-bold">💰 Wallet · Visão geral</h1>
+          <Link href="/" className="text-xl font-bold hover:opacity-90 transition">💰 Wallet · Visão geral</Link>
           <div className="flex items-center gap-3">
             <Link href="/dashboard/admin/deposit" className="text-sm bg-white/15 hover:bg-white/25 px-3 py-1 rounded transition">
               Depósito
@@ -36,26 +36,6 @@ export default async function AdminOverviewPage() {
       </header>
 
       <div className="max-w-5xl mx-auto px-4 py-8 space-y-6">
-        {o.unreadable.length > 0 && (
-          <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
-            <p className="font-semibold mb-1">Números incompletos</p>
-            <p className="mb-2">
-              Estas carteiras estão cadastradas mas não entraram nos totais, então o
-              saldo real está subestimado:
-            </p>
-            <ul className="list-disc list-inside space-y-0.5">
-              {o.unreadable.map((u) => (
-                <li key={`${u.type}-${u.reason}`}>
-                  {u.count}× <strong>{u.type}</strong> —{' '}
-                  {u.reason === 'sem-leitor'
-                    ? 'ainda não temos leitor para esse tipo'
-                    : 'a consulta falhou (credencial revogada ou API fora do ar)'}
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
-
         {o.unpriced.length > 0 && (
           <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-900">
             <p className="font-semibold mb-1">Moedas sem cotação</p>
@@ -204,6 +184,26 @@ export default async function AdminOverviewPage() {
             </div>
           )}
         </section>
+
+        {o.unreadable.length > 0 && (
+          <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+            <p className="font-semibold mb-1">Números incompletos</p>
+            <p className="mb-2">
+              Estas carteiras estão cadastradas mas não entraram nos totais, então o
+              saldo real está subestimado:
+            </p>
+            <ul className="list-disc list-inside space-y-0.5">
+              {o.unreadable.map((u) => (
+                <li key={`${u.type}-${u.reason}`}>
+                  {u.count}× <strong>{u.type}</strong> —{' '}
+                  {u.reason === 'sem-leitor'
+                    ? 'ainda não temos leitor para esse tipo'
+                    : 'a consulta falhou (credencial revogada ou API fora do ar)'}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
       </div>
     </main>
   );
