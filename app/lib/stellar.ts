@@ -28,10 +28,6 @@ const HOME_DOMAIN = process.env.STELLAR_HOME_DOMAIN || 'rcaldas.com';
 const INITIAL_BALANCE = process.env.STELLAR_INITIAL_BALANCE || '10';
 // Recarga de XLM enviada quando uma conta fica sem reserva para novas trustlines.
 const RESERVE_TOPUP = process.env.STELLAR_RESERVE_TOPUP || '3';
-// XLM sempre reservado para operações (reserva de conta, trustlines, taxas)
-// nas wallets custodiadas ('main') — não é saldo disponível ao usuário.
-// Único lugar a alterar para mudar esse valor em todo o app.
-const XLM_OPERATIONAL_RESERVE = Number(process.env.STELLAR_XLM_RESERVE || '20');
 
 export function getServer(): Horizon.Server {
   return new Horizon.Server(HORIZON_URL);
@@ -208,6 +204,42 @@ async function createUserWallet(userId: string): Promise<WalletDoc> {
   }
 
   return wallet;
+}
+
+// Cria e financia uma conta on-chain a partir da MAIN_WALLET, se ela ainda
+// não existir. Mesmo padrão de createUserWallet, mas reutilizável (usado pela
+// página de gerenciamento de issuers para provisionar a conta do issuer).
+// Idempotente: se a conta já existe, não faz nada.
+export async function provisionAccount(
+  publicKey: string,
+  startingBalance = INITIAL_BALANCE,
+): Promise<{ ok: true; created: boolean } | { ok: false; error: string }> {
+  const server = getServer();
+  try {
+    await server.loadAccount(publicKey);
+    return { ok: true, created: false }; // já existe
+  } catch (err) {
+    if (!isNotFound(err)) {
+      console.error('Falha ao consultar conta on-chain em provisionAccount:', err);
+      return { ok: false, error: 'Falha ao consultar a conta on-chain.' };
+    }
+  }
+
+  try {
+    const main = getMainWallet();
+    const mainAccount = await server.loadAccount(main.publicKey());
+    const fee = await baseFee(server);
+    const tx = new TransactionBuilder(mainAccount, { fee, networkPassphrase: NETWORK_PASSPHRASE })
+      .addOperation(Operation.createAccount({ destination: publicKey, startingBalance }))
+      .setTimeout(60)
+      .build();
+    tx.sign(main);
+    await server.submitTransaction(tx);
+    return { ok: true, created: true };
+  } catch (err) {
+    console.error('Falha ao provisionar conta on-chain:', err);
+    return { ok: false, error: 'Falha ao criar/financiar a conta a partir da MAIN_WALLET.' };
+  }
 }
 
 // Envia uma pequena recarga de XLM da MAIN_WALLET para uma conta (para cobrir reserva).
@@ -489,84 +521,45 @@ export async function executeConversion(params: {
     return { ok: false, error: 'Falha ao consultar a conta do usuário.' };
   }
 
-  const fromIsXlm = fromCoin === 'XLM';
-  const toIsXlm = toCoin === 'XLM';
-
-  let fromIssuer: IssuerDoc | null = null;
-  if (!fromIsXlm) {
-    fromIssuer = await loadIssuer(fromCoin);
-    if (!fromIssuer) {
-      return { ok: false, error: `Issuer "${fromCoin}" não encontrado.` };
-    }
+  // XLM agora é um token emitido por nós (issuer com chave terminando em XLM),
+  // então as duas pernas são tokens normais — nada de XLM nativo aqui. Isso
+  // elimina a movimentação de XLM real na conversão (vira só emissão de IOU) e
+  // com ela o risco de "meia operação" por falta de XLM na MAIN: a solvência
+  // do XLM-token é monitorada na Visão geral (lastro), não por transação.
+  const fromIssuer = await loadIssuer(fromCoin);
+  if (!fromIssuer) {
+    return { ok: false, error: `Issuer "${fromCoin}" não encontrado.` };
   }
-  let toIssuer: IssuerDoc | null = null;
-  if (!toIsXlm) {
-    toIssuer = await loadIssuer(toCoin);
-    if (!toIssuer || !toIssuer.secret) {
-      return { ok: false, error: `Issuer "${toCoin}" não encontrado ou sem chave.` };
-    }
+  const toIssuer = await loadIssuer(toCoin);
+  if (!toIssuer || !toIssuer.secret) {
+    return { ok: false, error: `Issuer "${toCoin}" não encontrado ou sem chave.` };
   }
 
-  // 1) Confere saldo disponível da moeda de saída (XLM desconta a reserva
-  // operacional, mesma regra de hideOperationalXlmReserve).
-  if (fromIsXlm) {
-    const nativeBalance = account.balances.find((b) => b.asset_type === 'native');
-    const available = nativeBalance ? parseFloat(nativeBalance.balance) - XLM_OPERATIONAL_RESERVE : 0;
-    if (available < Number(amountFrom)) {
-      return { ok: false, error: `Saldo insuficiente: disponível ${Math.max(available, 0)} XLM.` };
-    }
-  } else {
-    let available: number | null = null;
-    for (const b of account.balances) {
-      if ('asset_code' in b && b.asset_code === fromCoin && b.asset_issuer === fromIssuer!.public_key) {
-        available = parseFloat(b.balance);
-      }
-    }
-    if (available === null) {
-      return { ok: false, error: 'A conta do usuário não confia neste token.' };
-    }
-    if (available < Number(amountFrom)) {
-      return { ok: false, error: `Saldo insuficiente: disponível ${available} ${fromCoin}.` };
+  // 1) Confere trustline e saldo disponível da moeda de saída.
+  let available: number | null = null;
+  for (const b of account.balances) {
+    if ('asset_code' in b && b.asset_code === fromCoin && b.asset_issuer === fromIssuer.public_key) {
+      available = parseFloat(b.balance);
     }
   }
-
-  // 2) Confere se a contraparte cobre a moeda de entrada — só importa pro
-  // XLM (token próprio a gente sempre pode emitir, sem limite de estoque).
-  // Checado ANTES de qualquer operação on-chain: não dá pra tirar a moeda
-  // de saída do usuário sem ter certeza que a de entrada tem cobertura.
-  if (toIsXlm) {
-    const main = getMainWallet();
-    let mainAccount;
-    try {
-      mainAccount = await server.loadAccount(main.publicKey());
-    } catch (err) {
-      console.error('Erro ao consultar saldo da MAIN_WALLET na conversão:', err);
-      return { ok: false, error: 'Falha ao verificar a carteira principal. Tente novamente.' };
-    }
-    const nativeBalance = mainAccount.balances.find((b) => b.asset_type === 'native');
-    const mainAvailable = nativeBalance ? parseFloat(nativeBalance.balance) - XLM_OPERATIONAL_RESERVE : 0;
-    if (mainAvailable < Number(amountTo)) {
-      return {
-        ok: false,
-        error: 'Saldo insuficiente na carteira principal para cobrir essa conversão agora — tente um valor menor.',
-      };
-    }
+  if (available === null) {
+    return { ok: false, error: 'A conta do usuário não confia neste token.' };
+  }
+  if (available < Number(amountFrom)) {
+    return { ok: false, error: `Saldo insuficiente: disponível ${available} ${fromCoin}.` };
   }
 
-  // 3) Perna de saída: usuário devolve a moeda ao issuer, ou manda XLM real
-  // pra MAIN_WALLET.
+  // 2) Perna de saída: usuário devolve a moeda ao issuer dela.
   const buildOutgoing = async () => {
     const acc = await loadAccountWithRetry(server, wallet.key);
     const fee = await baseFee(server);
     const tx = new TransactionBuilder(acc, { fee, networkPassphrase: NETWORK_PASSPHRASE })
       .addOperation(
-        fromIsXlm
-          ? Operation.payment({ destination: getMainWallet().publicKey(), asset: Asset.native(), amount: amountFrom })
-          : Operation.payment({
-              destination: fromIssuer!.public_key,
-              asset: new Asset(fromIssuer!.name, fromIssuer!.public_key),
-              amount: amountFrom,
-            }),
+        Operation.payment({
+          destination: fromIssuer.public_key,
+          asset: new Asset(fromIssuer.name, fromIssuer.public_key),
+          amount: amountFrom,
+        }),
       )
       .setTimeout(60)
       .build();
@@ -591,13 +584,12 @@ export async function executeConversion(params: {
     }
   }
 
-  // 4) Perna de entrada: issuer emite a moeda nova pro usuário, ou a
-  // MAIN_WALLET manda XLM real. A partir daqui a perna de saída já foi
-  // confirmada — uma falha aqui vira um estado parcial que precisa de
-  // reconciliação manual (logado como erro crítico, não dá pra desfazer a
-  // perna anterior automaticamente).
-  const toKeypair = toIsXlm ? getMainWallet() : Keypair.fromSecret(toIssuer!.secret!);
-  const toAsset = toIsXlm ? Asset.native() : new Asset(toIssuer!.name, toIssuer!.public_key);
+  // 3) Perna de entrada: o issuer da moeda de destino emite pro usuário. A
+  // partir daqui a perna de saída já foi confirmada — uma falha aqui vira um
+  // estado parcial que precisa de reconciliação manual (logado como crítico,
+  // não dá pra desfazer a perna anterior automaticamente).
+  const toKeypair = Keypair.fromSecret(toIssuer.secret);
+  const toAsset = new Asset(toIssuer.name, toIssuer.public_key);
 
   const buildIncoming = async () => {
     const acc = await loadAccountWithRetry(server, toKeypair.publicKey());
@@ -615,7 +607,7 @@ export async function executeConversion(params: {
     return { ok: true };
   } catch (err) {
     const codes = operationCodes(err);
-    if (codes.includes('op_no_trust') && !toIsXlm) {
+    if (codes.includes('op_no_trust')) {
       try {
         await setTrustlines(userKp, [toCoin]);
         await server.submitTransaction(await buildIncoming());
@@ -675,7 +667,10 @@ export async function getAccountBalances(publicKey: string): Promise<RawBalance[
     for (const b of account.balances) {
       const balance = parseFloat(b.balance);
       if (b.asset_type === 'native') {
-        result.push({ coin: 'XLM', balance });
+        // XLM nativo da rede — distinto do token "XLM" que nós emitimos (esse
+        // vem como asset_code 'XLM' com o issuer nosso). Em conta custodiada é
+        // só reserva/taxa operacional; em carteira externa é XLM real do usuário.
+        result.push({ coin: 'XLM nativo', balance });
       } else if ('asset_code' in b) {
         result.push({ coin: b.asset_code, balance, issuer: b.asset_issuer });
       }
@@ -688,17 +683,13 @@ export async function getAccountBalances(publicKey: string): Promise<RawBalance[
   }
 }
 
-// Remove o XLM reservado para operações do saldo de uma wallet CUSTODIADA
-// ('main') — reserva de conta, trustlines e taxas não são saldo disponível.
-// Só se aplica a wallets 'main' (ver app/lib/wallets.ts); uma wallet 'stellar'
-// (chave pública cadastrada pelo próprio usuário) mostra o XLM real, sem
-// desconto, pois não é o app quem gerencia essa reserva.
-export function hideOperationalXlmReserve(balances: RawBalance[]): RawBalance[] {
-  return balances
-    .map((b) => {
-      if (b.coin !== 'XLM') return b;
-      const visible = b.balance - XLM_OPERATIONAL_RESERVE;
-      return { ...b, balance: visible > 0 ? visible : 0 };
-    })
-    .filter((b) => b.balance > 0);
+// Em wallet CUSTODIADA ('main'), o XLM nativo é 100% operacional (reserva de
+// conta, trustlines, taxas) — não é saldo do usuário. Desde que o "XLM" virou
+// um token emitido por nós, o saldo de XLM do usuário é o token (mostrado
+// integral, como BRL/USD/BTC); o nativo some inteiro da visão do usuário.
+// Só se aplica a wallets 'main' (ver app/lib/wallets.ts): uma wallet 'stellar'
+// (chave pública externa do próprio usuário) mostra o XLM nativo real, pois é
+// XLM de verdade que ele tem por fora.
+export function dropOperationalNativeXlm(balances: RawBalance[]): RawBalance[] {
+  return balances.filter((b) => b.coin !== 'XLM nativo');
 }

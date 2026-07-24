@@ -33,6 +33,9 @@ export default async function AdminOverviewPage() {
             <Link href="/dashboard/admin/withdraw" className="text-sm bg-white/15 hover:bg-white/25 px-3 py-1 rounded transition">
               Saques
             </Link>
+            <Link href="/dashboard/admin/issuers" className="text-sm bg-white/15 hover:bg-white/25 px-3 py-1 rounded transition">
+              Issuers
+            </Link>
             <Link href="/dashboard" className="text-sm bg-emerald-700 hover:bg-emerald-800 px-3 py-1 rounded transition">
               Voltar
             </Link>
@@ -77,6 +80,46 @@ export default async function AdminOverviewPage() {
             <p className="text-xs text-gray-500 dark:text-zinc-400 mt-1">Real − passivo</p>
           </div>
         </section>
+
+        {/* Lastro do XLM-token: XLM real na MAIN vs XLM-token emitido */}
+        {o.xlmBacking && (() => {
+          const b = o.xlmBacking;
+          const covered = b.realXlm >= b.issuedXlm;
+          return (
+            <section
+              className={`rounded-xl shadow-sm border p-5 ${
+                covered
+                  ? 'bg-emerald-50 border-emerald-200 dark:bg-emerald-950/30 dark:border-emerald-900/60'
+                  : 'bg-red-50 border-red-200 dark:bg-red-950/30 dark:border-red-900/60'
+              }`}
+            >
+              <div className="flex flex-wrap items-baseline justify-between gap-2">
+                <h2 className="text-lg font-semibold text-gray-800 dark:text-zinc-100">Lastro XLM</h2>
+                <span className={`text-sm font-medium ${covered ? 'text-emerald-700 dark:text-emerald-400' : 'text-red-700 dark:text-red-400'}`}>
+                  {covered ? 'Coberto' : 'Descoberto'}
+                </span>
+              </div>
+              <p className="text-gray-500 dark:text-zinc-400 text-sm mt-1 mb-3">
+                XLM real na carteira principal vs XLM-token emitido aos usuários. Mantenha
+                a principal com XLM suficiente para honrar os resgates.
+              </p>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div>
+                  <p className="text-xs text-gray-500 dark:text-zinc-400">XLM real (carteira principal)</p>
+                  <p className="text-xl font-bold text-gray-900 dark:text-zinc-50">
+                    {num(b.realXlm)} XLM <span className="text-sm font-normal text-gray-500 dark:text-zinc-400">· {brl(b.realXlmBrl)}</span>
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500 dark:text-zinc-400">XLM-token emitido</p>
+                  <p className="text-xl font-bold text-gray-900 dark:text-zinc-50">
+                    {num(b.issuedXlm)} XLM <span className="text-sm font-normal text-gray-500 dark:text-zinc-400">· {brl(b.issuedXlmBrl)}</span>
+                  </p>
+                </div>
+              </div>
+            </section>
+          );
+        })()}
 
         {/* Exposição por moeda */}
         <section>

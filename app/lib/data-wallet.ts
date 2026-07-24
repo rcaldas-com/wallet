@@ -81,6 +81,33 @@ export async function listIssuerKeys(): Promise<{ name: string; publicKey: strin
     .map((d) => ({ name: d.name as string, publicKey: d.public_key as string }));
 }
 
+// Metadados dos issuers para a tela de gerenciamento (admin). NUNCA retorna o
+// `secret` — só um booleano indicando se ele está presente.
+export type IssuerAdminRow = {
+  name: string;
+  publicKey: string;
+  displayName: string | null;
+  mirror: string | null;
+  hasSecret: boolean;
+};
+
+export async function listIssuersAdmin(): Promise<IssuerAdminRow[]> {
+  const client = await clientPromise;
+  const docs = await client
+    .db()
+    .collection('issuer')
+    .find({}, { projection: { name: 1, public_key: 1, displayName: 1, mirror: 1, secret: 1 } })
+    .sort({ name: 1 })
+    .toArray();
+  return docs.map((d) => ({
+    name: d.name as string,
+    publicKey: (d.public_key as string) ?? '',
+    displayName: (d.displayName as string | undefined) ?? null,
+    mirror: (d.mirror as string | undefined) ?? null,
+    hasSecret: Boolean(d.secret),
+  }));
+}
+
 // Emails dos administradores (para notificações de pedidos).
 export async function getAdminEmails(): Promise<string[]> {
   const client = await clientPromise;

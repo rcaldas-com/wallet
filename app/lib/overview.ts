@@ -2,6 +2,7 @@ import 'server-only';
 import { getUsersByIds, listIssuerKeys } from './data-wallet';
 import { listWalletsForReading, readWallets } from './wallets';
 import { getBrlPrice, getBrlValue } from './quotes';
+import { getMainWallet, getAccountBalances } from './stellar';
 
 export type CoinAmount = { coin: string; amount: number; brl: number };
 
@@ -35,6 +36,14 @@ export type Overview = {
   unreadable: { type: string; count: number; reason: 'sem-leitor' | 'erro' }[];
   // Moedas sem cotação: entraram como R$ 0 e distorcem os totais para baixo.
   unpriced: string[];
+  // Lastro do XLM-token: XLM real que temos na MAIN_WALLET vs XLM-token emitido.
+  // null quando não há XLM real nem token emitido.
+  xlmBacking: {
+    realXlm: number;
+    realXlmBrl: number;
+    issuedXlm: number;
+    issuedXlmBrl: number;
+  } | null;
 };
 
 // Acumulador por moeda que também guarda o issuer — necessário para o
@@ -158,6 +167,26 @@ export async function buildOverview(adminUserId: string): Promise<Overview> {
   const myRealBrl =
     holdings.find((h) => h.userId === adminUserId)?.externalBrl ?? 0;
 
+  // Lastro do XLM-token: XLM real na MAIN_WALLET vs XLM-token emitido (o `owed`
+  // da posição XLM). Como XLM virou token emitido por nós, a solvência do
+  // resgate em XLM real depende da MAIN_WALLET ter XLM suficiente — é a
+  // preocupação que substituiu a antiga checagem por-transação da conversão.
+  let xlmBacking: Overview['xlmBacking'] = null;
+  try {
+    const mainBalances = await getAccountBalances(getMainWallet().publicKey());
+    const realXlm = mainBalances.find((b) => b.coin === 'XLM nativo')?.balance ?? 0;
+    const issuedXlm = positions.find((p) => p.coin === 'XLM')?.owed ?? 0;
+    if (realXlm > 0 || issuedXlm > 0) {
+      const [realXlmBrl, issuedXlmBrl] = await Promise.all([
+        getBrlValue('XLM', realXlm),
+        getBrlValue('XLM', issuedXlm),
+      ]);
+      xlmBacking = { realXlm, realXlmBrl, issuedXlm, issuedXlmBrl };
+    }
+  } catch (err) {
+    console.error('Falha ao calcular lastro XLM na visão geral:', err);
+  }
+
   return {
     users: holdings,
     totalLiabilityBrl,
@@ -166,5 +195,6 @@ export async function buildOverview(adminUserId: string): Promise<Overview> {
     positions,
     unreadable,
     unpriced: [...unpricedSet],
+    xlmBacking,
   };
 }

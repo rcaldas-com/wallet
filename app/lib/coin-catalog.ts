@@ -5,11 +5,10 @@ export type CoinCatalogEntry = { symbol: string; displayName: string | null };
 
 // Ordem fixa pedida: BRL, USD, BTC, XLM primeiro (nessa ordem), depois o
 // resto em ordem alfabética. Usado em toda listagem de moeda do app
-// (depósito, saque, conversão, "Suas moedas").
+// (depósito, saque, conversão, "Suas moedas"). XLM agora é um token emitido
+// por nós (tem doc `issuer` como os outros), então vem da coleção, não é mais
+// injetado à mão aqui.
 const PRIORITY_ORDER = ['BRL', 'USD', 'BTC', 'XLM'];
-
-// XLM não é um doc `issuer` (é o ativo nativo da rede) — nome fica fixo aqui.
-const XLM_DISPLAY_NAME = 'Lumens';
 
 export function coinSortKey(symbol: string): [number, string] {
   const idx = PRIORITY_ORDER.indexOf(symbol);
@@ -42,7 +41,6 @@ export async function getCoinCatalog(): Promise<{
     .toArray();
 
   const bySymbol = new Map<string, CoinCatalogEntry>();
-  bySymbol.set('XLM', { symbol: 'XLM', displayName: XLM_DISPLAY_NAME });
   for (const d of issuerDocs) {
     bySymbol.set(d.name as string, {
       symbol: d.name as string,

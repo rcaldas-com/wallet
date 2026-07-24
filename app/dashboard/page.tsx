@@ -98,6 +98,12 @@ export default async function DashboardPage() {
                 >
                   Saques
                 </Link>
+                <Link
+                  href="/dashboard/admin/issuers"
+                  className="text-sm bg-white/15 hover:bg-white/25 px-3 py-1 rounded transition"
+                >
+                  Issuers
+                </Link>
               </>
             )}
             {/* O wallet não tem tela de perfil própria nem outro link de volta

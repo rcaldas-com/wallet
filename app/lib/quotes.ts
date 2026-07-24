@@ -7,10 +7,16 @@ import { getStellarPathPriceInXlm } from './stellar';
 const CCXT_URL = process.env.CCXT_URL || 'http://ccxt:8000';
 // Moeda base do sistema — valor direto, sem conversão.
 const BASE_COIN = 'BRL';
+// "XLM nativo" (saldo nativo lido de carteira externa) cota pelo mesmo preço
+// de XLM — o ccxt não conhece esse rótulo, então mapeamos antes de consultar.
+const PRICE_ALIAS: Record<string, string> = { 'XLM nativo': 'XLM' };
 
 // Cache simples em memória por processo (TTL curto) para não bater no serviço
-// a cada render.
-const PRICE_TTL_MS = 60_000;
+// a cada render. Alinhado ao intervalo do auto-refresh (auto-refresh.tsx) —
+// um TTL maior que o refresh só mostraria a mesma cotação em metade das
+// atualizações, sem ganho nenhum de carga (o auto-refresh já é o que define
+// a frequência real de consulta).
+const PRICE_TTL_MS = 30_000;
 const priceCache = new Map<string, { price: number; at: number }>();
 
 // Busca o preço de 1 unidade de `coin` em BRL via microserviço ccxt.
@@ -41,6 +47,7 @@ async function fetchBrlPrice(coin: string): Promise<number | null> {
 // (path payment até XLM) para ativos sem par nas exchanges centralizadas —
 // caso de tokens nativos do ecossistema Stellar como AQUA.
 export async function getBrlPrice(coin: string, issuer?: string): Promise<number | null> {
+  coin = PRICE_ALIAS[coin] ?? coin;
   if (coin === BASE_COIN) return 1;
   const direct = await fetchBrlPrice(coin);
   if (direct !== null) return direct;

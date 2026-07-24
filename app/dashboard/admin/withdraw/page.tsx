@@ -28,6 +28,12 @@ export default async function AdminWithdrawPage() {
               Depósito
             </Link>
             <Link
+              href="/dashboard/admin/issuers"
+              className="text-sm bg-white/15 hover:bg-white/25 px-3 py-1 rounded transition"
+            >
+              Issuers
+            </Link>
+            <Link
               href="/dashboard"
               className="text-sm bg-emerald-700 hover:bg-emerald-800 px-3 py-1 rounded transition"
             >
