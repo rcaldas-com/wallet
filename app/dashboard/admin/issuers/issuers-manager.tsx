@@ -83,8 +83,9 @@ function NewIssuerForm({ onResult }: { onResult: PushToast }) {
     <section className="bg-white dark:bg-zinc-900 rounded-xl shadow-sm border border-gray-100 dark:border-zinc-800 p-5">
       <h3 className="text-lg font-semibold text-gray-800 dark:text-zinc-100 mb-1">Novo issuer</h3>
       <p className="text-gray-500 dark:text-zinc-400 text-sm mb-4">
-        Gere a chave (com o sufixo do código, ex.: terminando em XLM) e cole aqui. A conta
-        é criada e financiada a partir da carteira principal.
+        Gere a chave (com o sufixo do código, ex.: terminando em XLM) e cole a secret aqui —
+        a chave pública é derivada dela. A conta é criada e financiada a partir da carteira
+        principal.
       </p>
       <form action={formAction} className="space-y-3">
         <div className="grid sm:grid-cols-2 gap-3">
@@ -100,14 +101,11 @@ function NewIssuerForm({ onResult }: { onResult: PushToast }) {
           </div>
         </div>
         <div>
-          <label htmlFor="public_key" className={labelClass}>Chave pública</label>
-          <input id="public_key" name="public_key" required placeholder="G..." className={`${inputClass} font-mono`} />
-        </div>
-        <div>
           <label htmlFor="secret" className={labelClass}>Chave secreta</label>
           <input id="secret" name="secret" required placeholder="S..." className={`${inputClass} font-mono`} />
           <p className="text-xs text-gray-400 dark:text-zinc-500 mt-1">
-            Fica só no servidor, nunca é exibida depois. Necessária para o issuer emitir os tokens.
+            Fica só no servidor, nunca é exibida depois. A pública é derivada dela e mostrada
+            na confirmação pra você conferir o sufixo.
           </p>
         </div>
         <div>

@@ -11,18 +11,11 @@ export type IssuerActionState = {
   message: string;
 };
 
-function isValidPublicKey(key: string): boolean {
-  try {
-    Keypair.fromPublicKey(key);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
 // Cadastra um novo issuer e provisiona a conta on-chain a partir da MAIN_WALLET
-// (se ainda não existir), deixando-a pronta pra emitir. O `secret` fica só no
-// servidor — necessário pra o issuer assinar as emissões (depósito/conversão).
+// (se ainda não existir), deixando-a pronta pra emitir. Só a chave SECRETA é
+// pedida — a pública é derivada dela (não faz sentido pedir as duas e arriscar
+// um par errado). O secret fica só no servidor, necessário pra o issuer assinar
+// as emissões (depósito/conversão).
 export async function createIssuer(
   _prevState: IssuerActionState,
   formData: FormData,
@@ -34,7 +27,6 @@ export async function createIssuer(
   }
 
   const name = String(formData.get('name') || '').trim().toUpperCase();
-  const publicKey = String(formData.get('public_key') || '').trim();
   const secret = String(formData.get('secret') || '').trim();
   const displayName = String(formData.get('displayName') || '').trim();
   const mirror = String(formData.get('mirror') || '').trim();
@@ -42,16 +34,13 @@ export async function createIssuer(
   if (!/^[A-Z0-9]{1,12}$/.test(name)) {
     return { success: false, message: 'Código inválido (use letras/números, até 12 caracteres).' };
   }
-  if (!isValidPublicKey(publicKey)) {
-    return { success: false, message: 'Chave pública inválida.' };
-  }
   if (!secret) {
     return { success: false, message: 'Informe a chave secreta do issuer (necessária para emitir).' };
   }
+  // Deriva a pública da secret — se a secret for inválida, falha aqui.
+  let publicKey: string;
   try {
-    if (Keypair.fromSecret(secret).publicKey() !== publicKey) {
-      return { success: false, message: 'A chave secreta não corresponde à chave pública.' };
-    }
+    publicKey = Keypair.fromSecret(secret).publicKey();
   } catch {
     return { success: false, message: 'Chave secreta inválida.' };
   }
@@ -77,17 +66,18 @@ export async function createIssuer(
   const provisioned = await provisionAccount(publicKey);
   revalidatePath('/dashboard/admin/issuers');
 
+  // Mostra a chave pública derivada pra o admin conferir o sufixo vanity.
   if (!provisioned.ok) {
     return {
       success: true,
-      message: `Issuer "${name}" cadastrado, mas a conta on-chain não pôde ser provisionada (${provisioned.error}). Use "Provisionar" na lista.`,
+      message: `Issuer "${name}" (${publicKey}) cadastrado, mas a conta on-chain não pôde ser provisionada (${provisioned.error}). Use "Provisionar" na lista.`,
     };
   }
   return {
     success: true,
     message: provisioned.created
-      ? `Issuer "${name}" cadastrado e conta on-chain criada.`
-      : `Issuer "${name}" cadastrado (conta on-chain já existia).`,
+      ? `Issuer "${name}" (${publicKey}) cadastrado e conta on-chain criada.`
+      : `Issuer "${name}" (${publicKey}) cadastrado (conta on-chain já existia).`,
   };
 }
 
