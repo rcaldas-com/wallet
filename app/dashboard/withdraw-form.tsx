@@ -3,6 +3,7 @@
 import { useActionState, useEffect, useState } from 'react';
 import { requestWithdraw, type WithdrawState } from '@/app/lib/actions/withdraw';
 import type { CoinBalance } from '@/app/lib/definitions';
+import type { CoinCatalogEntry } from '@/app/lib/coin-catalog';
 
 type Toast = { id: number; message: string; success: boolean };
 
@@ -15,7 +16,13 @@ function formatMaxAmount(n: number): string {
   return fixed.includes('.') ? fixed.replace(/0+$/, '').replace(/\.$/, '') : fixed;
 }
 
-export default function WithdrawForm({ holdings }: { holdings: CoinBalance[] }) {
+export default function WithdrawForm({
+  holdings,
+  catalog,
+}: {
+  holdings: CoinBalance[];
+  catalog: { priority: CoinCatalogEntry[]; others: CoinCatalogEntry[] };
+}) {
   const [state, formAction, isPending] = useActionState(requestWithdraw, initialState);
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [coin, setCoin] = useState(holdings[0]?.coin || '');
@@ -45,6 +52,15 @@ export default function WithdrawForm({ holdings }: { holdings: CoinBalance[] }) 
   }
 
   if (holdings.length === 0) return null;
+
+  // Nome amigável das moedas, mesmo catálogo usado no "Para" da conversão.
+  const nameBySymbol = new Map(
+    [...catalog.priority, ...catalog.others].map((c) => [c.symbol, c.displayName]),
+  );
+  const holdingLabel = (c: string) => {
+    const displayName = nameBySymbol.get(c);
+    return displayName ? `${c} (${displayName})` : c;
+  };
 
   // Preço unitário derivado do próprio saldo já convertido em R$ que a tela
   // mostra em "Suas moedas" — permite calcular nos dois sentidos sem
@@ -102,8 +118,8 @@ export default function WithdrawForm({ holdings }: { holdings: CoinBalance[] }) 
   return (
     <>
       <form action={formAction} onSubmit={handleSubmit} className="space-y-3">
-        <div className="flex flex-col sm:flex-row gap-3">
-        <div className="w-full sm:w-28">
+        <div className="grid grid-cols-1 sm:grid-cols-[minmax(11rem,1.3fr)_minmax(7rem,1fr)_minmax(7rem,1fr)] gap-3">
+        <div>
           <label htmlFor="wcoin" className="block text-sm font-medium text-gray-700 dark:text-zinc-300 mb-1">
             Moeda
           </label>
@@ -117,12 +133,12 @@ export default function WithdrawForm({ holdings }: { holdings: CoinBalance[] }) 
           >
             {holdings.map((h) => (
               <option key={h.coin} value={h.coin}>
-                {h.coin}
+                {holdingLabel(h.coin)}
               </option>
             ))}
           </select>
         </div>
-        <div className="w-full sm:flex-1">
+        <div>
           <label htmlFor="wamount" className="block text-sm font-medium text-gray-700 dark:text-zinc-300 mb-1">
             Quantidade
           </label>
@@ -147,7 +163,7 @@ export default function WithdrawForm({ holdings }: { holdings: CoinBalance[] }) 
             </button>
           </div>
         </div>
-        <div className="w-full sm:w-40">
+        <div>
           <label htmlFor="wtotal" className="block text-sm font-medium text-gray-700 dark:text-zinc-300 mb-1">
             Valor total (R$)
           </label>

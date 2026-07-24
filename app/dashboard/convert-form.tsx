@@ -47,6 +47,13 @@ export default function ConvertForm({
 
   if (holdings.length === 0) return null;
 
+  // Nome amigável das moedas que o usuário já tem — mesmo catálogo que
+  // alimenta o "Para", só que aqui indexado por símbolo pra decorar o "De".
+  const nameBySymbol = new Map(
+    [...catalog.priority, ...catalog.others].map((c) => [c.symbol, c.displayName]),
+  );
+  const holdingLabel = (coin: string) => optionLabel({ symbol: coin, displayName: nameBySymbol.get(coin) ?? null });
+
   const toOptions = [...catalog.priority, ...catalog.others].filter((c) => c.symbol !== fromCoin);
   const toPriorityOptions = catalog.priority.filter((c) => c.symbol !== fromCoin);
   const toOtherOptions = catalog.others.filter((c) => c.symbol !== fromCoin);
@@ -89,8 +96,8 @@ export default function ConvertForm({
       </p>
 
       <form action={formAction} onSubmit={handleSubmit} className="space-y-3">
-        <div className="flex flex-col sm:flex-row gap-3">
-          <div className="w-full sm:w-40">
+        <div className="grid grid-cols-1 sm:grid-cols-[minmax(11rem,1.3fr)_minmax(7rem,1fr)_minmax(11rem,1.3fr)] gap-3">
+          <div>
             <label htmlFor="fromCoin" className="block text-sm font-medium text-gray-700 dark:text-zinc-300 mb-1">
               De
             </label>
@@ -104,13 +111,13 @@ export default function ConvertForm({
             >
               {holdings.map((h) => (
                 <option key={h.coin} value={h.coin}>
-                  {h.coin}
+                  {holdingLabel(h.coin)}
                 </option>
               ))}
             </select>
           </div>
 
-          <div className="w-full sm:flex-1">
+          <div>
             <label htmlFor="camount" className="block text-sm font-medium text-gray-700 dark:text-zinc-300 mb-1">
               Quantidade
             </label>
@@ -136,7 +143,7 @@ export default function ConvertForm({
             </div>
           </div>
 
-          <div className="w-full sm:w-48">
+          <div>
             <label htmlFor="toCoin" className="block text-sm font-medium text-gray-700 dark:text-zinc-300 mb-1">
               Para
             </label>

@@ -10,6 +10,7 @@ import type { CoinBalance } from '@/app/lib/definitions';
 import { getCoinCatalog, sortCoins } from '@/app/lib/coin-catalog';
 import WithdrawForm from './withdraw-form';
 import ConvertForm from './convert-form';
+import CoinCard, { type CoinSource } from './coin-card';
 import ThemeToggle from '@/app/components/theme-toggle';
 import AutoRefresh from '@/app/components/auto-refresh';
 
@@ -43,6 +44,19 @@ export default async function DashboardPage() {
     byCoin.set(b.coin, { coin: b.coin, balance: (prev?.balance || 0) + b.balance, issuer: prev?.issuer ?? b.issuer });
   }
   const aggregated = [...byCoin.values()];
+
+  // Origem de cada saldo (carteira do app, externa, exchange) — mostrado sob
+  // demanda em "Suas moedas", sem alterar o total agregado por moeda.
+  const sourcesByCoin = new Map<string, CoinSource[]>();
+  for (const r of reads) {
+    if (r.status !== 'ok') continue;
+    for (const b of r.balances) {
+      if (b.balance <= 0) continue;
+      const arr = sourcesByCoin.get(b.coin) ?? [];
+      arr.push({ type: r.type, key: r.key, balance: b.balance });
+      sourcesByCoin.set(b.coin, arr);
+    }
+  }
 
   // Saldos residuais (< R$5) são ignorados, mesmo tratamento dado à reserva
   // operacional de XLM (hideOperationalXlmReserve) — poeira sem cotação
@@ -152,16 +166,13 @@ export default async function DashboardPage() {
               ) : (
                 <div className="grid gap-3 sm:grid-cols-2">
                   {coins.map((c) => (
-                    <div
+                    <CoinCard
                       key={c.coin}
-                      className="bg-white dark:bg-zinc-900 rounded-xl shadow-sm border border-gray-100 dark:border-zinc-800 p-4 flex items-center justify-between"
-                    >
-                      <div>
-                        <p className="font-semibold text-gray-800 dark:text-zinc-100">{c.coin}</p>
-                        <p className="text-gray-500 dark:text-zinc-400 text-sm">{num(c.balance)}</p>
-                      </div>
-                      <p className="text-gray-900 dark:text-zinc-50 font-medium">{brl(c.valueBrl)}</p>
-                    </div>
+                      coin={c.coin}
+                      balance={c.balance}
+                      valueBrl={c.valueBrl}
+                      sources={sourcesByCoin.get(c.coin) ?? []}
+                    />
                   ))}
                 </div>
               )}
@@ -175,7 +186,7 @@ export default async function DashboardPage() {
               <p className="text-gray-500 dark:text-zinc-400 text-sm mb-4">
                 Envie um pedido de saque. Você será avisado quando for processado.
               </p>
-              <WithdrawForm holdings={coins} />
+              <WithdrawForm holdings={coins} catalog={catalog} />
             </section>
 
             {/* Histórico */}
