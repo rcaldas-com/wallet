@@ -72,6 +72,9 @@ export default async function DashboardPage() {
   // alimenta o select "Para" da conversão e a prévia "≈ X moeda", inclusive
   // pra moedas que o usuário ainda não tem.
   const catalog = await getCoinCatalog();
+  const nameBySymbol = new Map(
+    [...catalog.priority, ...catalog.others].map((c) => [c.symbol, c.displayName]),
+  );
   const issuers = await listIssuerKeys();
   const issuerByName = new Map(issuers.map((i) => [i.name, i.publicKey]));
   const catalogSymbols = [...catalog.priority, ...catalog.others].map((c) => c.symbol);
@@ -169,6 +172,7 @@ export default async function DashboardPage() {
                     <CoinCard
                       key={c.coin}
                       coin={c.coin}
+                      displayName={nameBySymbol.get(c.coin) ?? null}
                       balance={c.balance}
                       valueBrl={c.valueBrl}
                       sources={sourcesByCoin.get(c.coin) ?? []}

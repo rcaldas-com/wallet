@@ -14,11 +14,13 @@ const truncateKey = (key: string) => (key.length > 16 ? `${key.slice(0, 8)}…${
 
 export default function CoinCard({
   coin,
+  displayName,
   balance,
   valueBrl,
   sources,
 }: {
   coin: string;
+  displayName: string | null;
   balance: number;
   valueBrl: number;
   sources: CoinSource[];
@@ -38,7 +40,12 @@ export default function CoinCard({
     >
       <div className="flex items-center justify-between">
         <div>
-          <p className="font-semibold text-gray-800 dark:text-zinc-100">{coin}</p>
+          <p className="font-semibold text-gray-800 dark:text-zinc-100">
+            {coin}
+            {displayName && (
+              <span className="ml-1.5 font-normal text-gray-500 dark:text-zinc-400">({displayName})</span>
+            )}
+          </p>
           <p className="text-gray-500 dark:text-zinc-400 text-sm">{num(balance)}</p>
         </div>
         <p className="text-gray-900 dark:text-zinc-50 font-medium">{brl(valueBrl)}</p>
