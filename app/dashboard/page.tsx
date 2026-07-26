@@ -65,6 +65,28 @@ export default async function DashboardPage() {
   const { coins: unsortedCoins, totalBrl } = await valueBalancesInBrl(aggregated, 5);
   const coins: CoinBalance[] = sortCoins(unsortedCoins);
 
+  // Só o que está na carteira custodiada ('main') é convertível/sacável — o app
+  // tem a chave e move on-chain. BTC de carteira externa, XLM nativo e saldos de
+  // exchange são somente leitura (aparecem em "Suas moedas", mas não como origem
+  // de conversão/saque). O servidor também barra, mas oferecer aqui só geraria
+  // erro confuso.
+  const custodialByCoin = new Map<string, number>();
+  for (const r of reads) {
+    if (r.status !== 'ok' || r.type !== 'main') continue;
+    for (const b of r.balances) {
+      if (b.balance <= 0) continue;
+      custodialByCoin.set(b.coin, (custodialByCoin.get(b.coin) ?? 0) + b.balance);
+    }
+  }
+  // Deriva os saldos custodiados a partir da lista já cotada: valueBrl é
+  // proporcional ao saldo (mesmo preço unitário), então escala sem reconsultar.
+  const custodialCoins: CoinBalance[] = coins
+    .filter((c) => (custodialByCoin.get(c.coin) ?? 0) > 0)
+    .map((c) => {
+      const custodial = custodialByCoin.get(c.coin)!;
+      return { coin: c.coin, balance: custodial, valueBrl: c.balance > 0 ? c.valueBrl * (custodial / c.balance) : 0 };
+    });
+
   const movements = await getUserMovements(user._id);
   const isEmpty = coins.length === 0 && movements.length === 0;
 
@@ -182,16 +204,26 @@ export default async function DashboardPage() {
               )}
             </section>
 
-            <ConvertForm holdings={coins} catalog={catalog} priceMap={priceMap} />
+            {custodialCoins.length > 0 ? (
+              <>
+                <ConvertForm holdings={custodialCoins} catalog={catalog} priceMap={priceMap} />
 
-            {/* Solicitar saque */}
-            <section className="bg-white dark:bg-zinc-900 rounded-xl shadow-sm border border-gray-100 dark:border-zinc-800 p-5">
-              <h2 className="text-lg font-semibold text-gray-800 dark:text-zinc-100 mb-1">Solicitar saque</h2>
-              <p className="text-gray-500 dark:text-zinc-400 text-sm mb-4">
-                Envie um pedido de saque. Você será avisado quando for processado.
-              </p>
-              <WithdrawForm holdings={coins} catalog={catalog} />
-            </section>
+                {/* Solicitar saque */}
+                <section className="bg-white dark:bg-zinc-900 rounded-xl shadow-sm border border-gray-100 dark:border-zinc-800 p-5">
+                  <h2 className="text-lg font-semibold text-gray-800 dark:text-zinc-100 mb-1">Solicitar saque</h2>
+                  <p className="text-gray-500 dark:text-zinc-400 text-sm mb-4">
+                    Envie um pedido de saque. Você será avisado quando for processado.
+                  </p>
+                  <WithdrawForm holdings={custodialCoins} catalog={catalog} />
+                </section>
+              </>
+            ) : (
+              <section className="rounded-xl border border-gray-200 bg-gray-50 p-5 text-sm text-gray-600 dark:border-zinc-800 dark:bg-zinc-900/50 dark:text-zinc-400">
+                Seus saldos estão em carteiras externas (somente leitura), então não há o que
+                converter ou sacar por aqui — o app só movimenta o que está na carteira da
+                RCaldas. Faça um depósito para ter saldo disponível para conversão e saque.
+              </section>
+            )}
 
             {/* Histórico */}
             <section>
