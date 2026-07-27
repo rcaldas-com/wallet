@@ -14,7 +14,16 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+// Base para resolver URLs absolutas das imagens de OG/Twitter (opengraph-image).
+// Em prod WALLET_URL é o domínio (https://wallet.rcaldas.com); em dev é "/wallet"
+// (relativo), então deixamos indefinido — o fallback localhost do Next é
+// inofensivo em dev e evita `new URL()` quebrar com uma URL relativa.
+const walletUrl = process.env.WALLET_URL;
+const metadataBase =
+  walletUrl && /^https?:\/\//.test(walletUrl) ? new URL(walletUrl) : undefined;
+
 export const metadata: Metadata = {
+  metadataBase,
   title: "Wallet - RCaldas",
   description: "Carteira digital RCaldas",
   icons: {
