@@ -11,6 +11,7 @@ import { getCoinCatalog, sortCoins } from '@/app/lib/coin-catalog';
 import WithdrawForm from './withdraw-form';
 import ConvertForm from './convert-form';
 import CoinCard, { type CoinSource } from './coin-card';
+import CancelWithdrawButton from './cancel-withdraw-button';
 import ThemeToggle from '@/app/components/theme-toggle';
 import AutoRefresh from '@/app/components/auto-refresh';
 
@@ -251,9 +252,10 @@ export default async function DashboardPage() {
                                   <span className="text-lg leading-none">↓</span> Depósito
                                 </span>
                               ) : m.kind === 'withdraw' ? (
-                                <span className="inline-flex items-center gap-1 text-amber-700 dark:text-amber-400">
+                                <span className="inline-flex flex-wrap items-center gap-1 text-amber-700 dark:text-amber-400">
                                   <span className="text-lg leading-none">↑</span> Saque
                                   <WithdrawBadge status={m.status} />
+                                  {m.status === 'requested' && <CancelWithdrawButton id={m._id} />}
                                 </span>
                               ) : (
                                 <span className="inline-flex items-center gap-1 text-sky-700 dark:text-sky-400">
@@ -324,6 +326,7 @@ function WithdrawBadge({ status }: { status?: string | null }) {
     requested: { label: 'solicitado', className: 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300' },
     rejected: { label: 'recusado', className: 'bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300' },
     completed: { label: 'concluído', className: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300' },
+    cancelled: { label: 'cancelado', className: 'bg-gray-100 text-gray-600 dark:bg-zinc-800 dark:text-zinc-400' },
   };
   const badge = status ? badges[status] : undefined;
   if (!badge) return null;

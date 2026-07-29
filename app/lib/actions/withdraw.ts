@@ -12,6 +12,7 @@ import {
   rejectWithdraw,
   getUserName,
   getPendingWithdrawTotal,
+  cancelWithdrawRequest,
 } from '@/app/lib/data-wallet';
 import { sendWithdrawRequestEmail, sendWithdrawProcessedEmail } from '@/app/lib/email';
 import { uploadReceiptFile } from '@/app/lib/file-upload';
@@ -114,6 +115,27 @@ export async function requestWithdraw(
     success: true,
     message: `Pedido de saque de ${amount} ${coin} enviado. Você será avisado quando for processado.`,
   };
+}
+
+// --- Usuário: cancela o próprio pedido enquanto ainda está pendente ---
+
+export async function cancelWithdraw(id: string): Promise<WithdrawState> {
+  let user;
+  try {
+    user = await requireWalletAccess();
+  } catch {
+    return { success: false, message: 'Sessão expirada ou sem acesso à carteira.' };
+  }
+  if (!id) return { success: false, message: 'Pedido inválido.' };
+
+  const ok = await cancelWithdrawRequest({ id, userId: user._id });
+  if (!ok) {
+    return { success: false, message: 'Não foi possível cancelar — o pedido já pode ter sido processado.' };
+  }
+
+  revalidatePath('/dashboard');
+  revalidatePath('/dashboard/admin/withdraw');
+  return { success: true, message: 'Pedido de saque cancelado.' };
 }
 
 // --- Admin: confirma o saque (devolve o token ao issuer) ---

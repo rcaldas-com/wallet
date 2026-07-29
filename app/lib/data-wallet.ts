@@ -156,6 +156,20 @@ export async function getPendingWithdrawTotal(userId: string, coin: string): Pro
   return docs.reduce((sum, d) => sum + (Number(d.amount) || 0), 0);
 }
 
+// Cancela um pedido de saque do PRÓPRIO usuário, só se ainda estiver pendente
+// ('requested'). Update condicional atômico: se o admin já processou (status
+// mudou) ou o pedido não é do usuário, não mexe. Nada on-chain foi reservado no
+// pedido, então cancelar é só marcar o status. Retorna true se cancelou.
+export async function cancelWithdrawRequest(params: { id: string; userId: string }): Promise<boolean> {
+  if (!ObjectId.isValid(params.id)) return false;
+  const client = await clientPromise;
+  const res = await client.db().collection('withdraw').updateOne(
+    { _id: new ObjectId(params.id), user: new ObjectId(params.userId), status: 'requested' },
+    { $set: { status: 'cancelled', cancelledAt: new Date() } },
+  );
+  return res.modifiedCount > 0;
+}
+
 // Pedidos de saque pendentes, com dados do solicitante.
 export async function listPendingWithdrawals(): Promise<PendingWithdraw[]> {
   const client = await clientPromise;
