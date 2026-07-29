@@ -683,6 +683,30 @@ export async function getAccountBalances(publicKey: string): Promise<RawBalance[
   }
 }
 
+// Saldo custodiado (token emitido) de uma moeda na carteira 'main' do usuário.
+// Distingue "não tem" de "não deu pra ler":
+//   - número (inclui 0): saldo real conhecido (conta lida, ou inexistente = 0,
+//     ou sem trustline dessa moeda = 0).
+//   - null: erro de rede/leitura — desconhecido. O chamador decide (em geral
+//     não bloquear, já que a baixa on-chain é a proteção final contra saque a
+//     descoberto).
+export async function getCustodialCoinBalance(userId: string, coin: string): Promise<number | null> {
+  const wallet = await getUserMainWallet(userId);
+  if (!wallet) return 0; // sem carteira custodiada = nada disponível
+  const server = getServer();
+  try {
+    const account = await server.loadAccount(wallet.key);
+    for (const b of account.balances) {
+      if ('asset_code' in b && b.asset_code === coin) return parseFloat(b.balance);
+    }
+    return 0; // conta existe mas sem trustline dessa moeda
+  } catch (err) {
+    if (isNotFound(err)) return 0; // conta nunca existiu on-chain
+    console.error(`Falha ao ler saldo custodiado de ${coin} do usuário ${userId}:`, err);
+    return null; // erro de rede — desconhecido
+  }
+}
+
 // Em wallet CUSTODIADA ('main'), o XLM nativo é 100% operacional (reserva de
 // conta, trustlines, taxas) — não é saldo do usuário. Desde que o "XLM" virou
 // um token emitido por nós, o saldo de XLM do usuário é o token (mostrado

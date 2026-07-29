@@ -140,6 +140,22 @@ export async function recordWithdrawRequest(params: {
   });
 }
 
+// Soma dos pedidos de saque ainda pendentes ('requested') de um usuário numa
+// moeda — usado para não deixar pedir mais do que o saldo já comprometido em
+// outros pedidos abertos.
+export async function getPendingWithdrawTotal(userId: string, coin: string): Promise<number> {
+  const client = await clientPromise;
+  const docs = await client
+    .db()
+    .collection('withdraw')
+    .find(
+      { user: new ObjectId(userId), coin, status: 'requested' },
+      { projection: { amount: 1 } },
+    )
+    .toArray();
+  return docs.reduce((sum, d) => sum + (Number(d.amount) || 0), 0);
+}
+
 // Pedidos de saque pendentes, com dados do solicitante.
 export async function listPendingWithdrawals(): Promise<PendingWithdraw[]> {
   const client = await clientPromise;

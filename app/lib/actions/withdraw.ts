@@ -3,7 +3,7 @@
 import { z } from 'zod';
 import { revalidatePath } from 'next/cache';
 import { requireWalletAccess, requireAdmin } from '@/app/lib/auth';
-import { withdrawCoin } from '@/app/lib/stellar';
+import { withdrawCoin, getCustodialCoinBalance } from '@/app/lib/stellar';
 import {
   recordWithdrawRequest,
   getAdminEmails,
@@ -11,6 +11,7 @@ import {
   completeWithdraw,
   rejectWithdraw,
   getUserName,
+  getPendingWithdrawTotal,
 } from '@/app/lib/data-wallet';
 import { sendWithdrawRequestEmail, sendWithdrawProcessedEmail } from '@/app/lib/email';
 import { uploadReceiptFile } from '@/app/lib/file-upload';
@@ -68,6 +69,25 @@ export async function requestWithdraw(
   }
   const amount = normalized.value;
   const { coin, destination, desc } = parsed.data;
+
+  // Impede pedir mais do que o saldo disponível, já descontando outros pedidos
+  // ainda pendentes da mesma moeda — sem isso dava pra solicitar o mesmo valor
+  // várias vezes (cada pedido é independente e não reserva o saldo). Se o saldo
+  // on-chain não puder ser lido (rede), segue: a baixa on-chain na confirmação
+  // é a proteção final contra saque a descoberto.
+  const balance = await getCustodialCoinBalance(user._id, coin);
+  if (balance !== null) {
+    const pending = await getPendingWithdrawTotal(user._id, coin);
+    const available = balance - pending;
+    const fmt = (n: number) => Number(n.toFixed(7)).toLocaleString('pt-BR', { maximumFractionDigits: 7 });
+    if (Number(amount) > available + 1e-7) {
+      const msg =
+        pending > 0
+          ? `Saldo insuficiente: você tem ${fmt(balance)} ${coin}, mas ${fmt(pending)} já está em pedidos de saque pendentes (disponível: ${fmt(Math.max(available, 0))} ${coin}).`
+          : `Saldo insuficiente: disponível ${fmt(Math.max(available, 0))} ${coin}.`;
+      return { success: false, message: msg };
+    }
+  }
 
   await recordWithdrawRequest({ userId: user._id, amount, coin, destination, desc });
 
