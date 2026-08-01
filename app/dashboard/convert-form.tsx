@@ -55,21 +55,29 @@ export default function ConvertForm({
   );
   const holdingLabel = (coin: string) => optionLabel({ symbol: coin, displayName: nameBySymbol.get(coin) ?? null });
 
-  const toOptions = [...catalog.priority, ...catalog.others].filter((c) => c.symbol !== fromCoin);
-  const toPriorityOptions = catalog.priority.filter((c) => c.symbol !== fromCoin);
-  const toOtherOptions = catalog.others.filter((c) => c.symbol !== fromCoin);
+  // fromCoin pode ficar obsoleto quando a moeda selecionada some de holdings
+  // (ex.: foi toda convertida): o <select> passa a exibir a primeira opção,
+  // mas o estado ainda aponta pra moeda que saiu — e o MAX/preview/submit
+  // usariam uma moeda inexistente (MAX não achava o saldo). effectiveFromCoin
+  // sempre resolve pra uma moeda presente em holdings (mesma ideia do
+  // effectiveToCoin), sem precisar recarregar a página.
+  const effectiveFromCoin = holdings.some((h) => h.coin === fromCoin) ? fromCoin : holdings[0]?.coin || '';
+
+  const toOptions = [...catalog.priority, ...catalog.others].filter((c) => c.symbol !== effectiveFromCoin);
+  const toPriorityOptions = catalog.priority.filter((c) => c.symbol !== effectiveFromCoin);
+  const toOtherOptions = catalog.others.filter((c) => c.symbol !== effectiveFromCoin);
 
   // Garante que "Para" nunca fique igual a "De" quando a pessoa troca a
   // moeda de origem.
   const effectiveToCoin = toCoin && toOptions.some((c) => c.symbol === toCoin) ? toCoin : toOptions[0]?.symbol || '';
 
   const handleMax = () => {
-    const h = holdings.find((x) => x.coin === fromCoin);
+    const h = holdings.find((x) => x.coin === effectiveFromCoin);
     if (h) setAmount(formatAmount(h.balance));
   };
 
   const preview = (() => {
-    const fromPrice = priceMap[fromCoin];
+    const fromPrice = priceMap[effectiveFromCoin];
     const toPrice = priceMap[effectiveToCoin];
     const n = Number(amount.trim().replace(',', '.'));
     if (!fromPrice || !toPrice || amount.trim() === '' || !isFinite(n)) return null;
@@ -77,11 +85,11 @@ export default function ConvertForm({
   })();
 
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
-    if (!fromCoin || !effectiveToCoin || !amount) return;
+    if (!effectiveFromCoin || !effectiveToCoin || !amount) return;
     const approx = preview ? ` (≈ ${preview} ${effectiveToCoin})` : '';
     if (
       !confirm(
-        `Converter ${amount} ${fromCoin} para ${effectiveToCoin}${approx}?\n\n` +
+        `Converter ${amount} ${effectiveFromCoin} para ${effectiveToCoin}${approx}?\n\n` +
           `Esta operação é feita na rede Stellar e é irreversível.`,
       )
     ) {
@@ -106,7 +114,7 @@ export default function ConvertForm({
               id="fromCoin"
               name="fromCoin"
               required
-              value={fromCoin}
+              value={effectiveFromCoin}
               onChange={(e) => setFromCoin(e.target.value)}
               className="w-full border border-gray-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-gray-900 dark:text-zinc-100 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-500"
             >
