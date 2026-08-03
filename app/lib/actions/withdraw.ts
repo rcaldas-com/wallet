@@ -16,6 +16,7 @@ import {
 } from '@/app/lib/data-wallet';
 import { sendWithdrawRequestEmail, sendWithdrawProcessedEmail } from '@/app/lib/email';
 import { uploadReceiptFile } from '@/app/lib/file-upload';
+import { getCoinDisplayName } from '@/app/lib/coin-catalog';
 
 export type WithdrawState = {
   success: boolean;
@@ -96,12 +97,14 @@ export async function requestWithdraw(
   try {
     const admins = await getAdminEmails();
     if (admins.length > 0) {
+      const coinName = await getCoinDisplayName(coin);
       await sendWithdrawRequestEmail({
         admins,
         userName: user.name,
         userEmail: user.email,
         amount,
         coin,
+        coinName,
         destination,
         desc,
       });
@@ -185,12 +188,14 @@ export async function confirmWithdraw(
   try {
     const user = await getUserName(userId);
     if (user) {
+      const coinName = await getCoinDisplayName(coin);
       await sendWithdrawProcessedEmail({
         email: user.email,
         name: user.name,
         status: 'completed',
         amount,
         coin,
+        coinName,
         destination: doc.destination || '',
         txHash: result.hash,
         proof,
@@ -239,12 +244,14 @@ export async function declineWithdraw(
     const userId = doc.user?.toString();
     const user = userId ? await getUserName(userId) : null;
     if (user) {
+      const coinName = await getCoinDisplayName(doc.coin);
       await sendWithdrawProcessedEmail({
         email: user.email,
         name: user.name,
         status: 'rejected',
         amount: String(doc.amount),
         coin: doc.coin,
+        coinName,
         destination: doc.destination || '',
         reason,
       });

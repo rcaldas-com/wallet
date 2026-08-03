@@ -55,3 +55,15 @@ export async function getCoinCatalog(): Promise<{
 
   return { priority, others };
 }
+
+// Nome amigável de uma única moeda (ex.: para os emails de depósito/saque,
+// que não precisam do catálogo inteiro) — null se não houver issuer com esse
+// nome ou se ele não tiver displayName cadastrado.
+export async function getCoinDisplayName(symbol: string): Promise<string | null> {
+  const client = await clientPromise;
+  const doc = await client
+    .db()
+    .collection('issuer')
+    .findOne({ name: symbol }, { projection: { displayName: 1 } });
+  return (doc?.displayName as string | undefined) ?? null;
+}

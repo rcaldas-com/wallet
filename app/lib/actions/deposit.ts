@@ -9,6 +9,7 @@ import { valueBalancesInBrl } from '@/app/lib/quotes';
 import { recordDeposit, getUserName } from '@/app/lib/data-wallet';
 import { sendDepositEmail } from '@/app/lib/email';
 import { uploadReceiptFile } from '@/app/lib/file-upload';
+import { getCoinDisplayName } from '@/app/lib/coin-catalog';
 
 export type DepositState = {
   success: boolean;
@@ -87,11 +88,13 @@ export async function createDeposit(
       // Mesmo corte de poeira (< R$5) usado no dashboard, pra "saldo total"
       // do email bater com o que o usuário vê no app.
       const { totalBrl } = await valueBalancesInBrl(reads.flatMap((r) => r.balances), 5);
+      const coinName = await getCoinDisplayName(coin);
       await sendDepositEmail({
         email: user.email,
         name: user.name,
         amount,
         coin,
+        coinName,
         totalBrl,
         desc,
         receiptUrl: receiptFile?.url,
