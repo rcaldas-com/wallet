@@ -17,6 +17,7 @@ import {
 import { sendWithdrawRequestEmail, sendWithdrawProcessedEmail } from '@/app/lib/email';
 import { uploadReceiptFile } from '@/app/lib/file-upload';
 import { getCoinDisplayName } from '@/app/lib/coin-catalog';
+import { getPriceStatus } from '@/app/lib/price-monitor';
 
 export type WithdrawState = {
   success: boolean;
@@ -71,6 +72,14 @@ export async function requestWithdraw(
   }
   const amount = normalized.value;
   const { coin, destination, desc } = parsed.data;
+
+  const priceStatus = await getPriceStatus(coin);
+  if (priceStatus.tripped) {
+    return {
+      success: false,
+      message: `Saque de ${coin} temporariamente bloqueado: cotação com variação anômala. Aguarde a normalização ou a liberação de um admin.`,
+    };
+  }
 
   // Impede pedir mais do que o saldo disponível, já descontando outros pedidos
   // ainda pendentes da mesma moeda — sem isso dava pra solicitar o mesmo valor

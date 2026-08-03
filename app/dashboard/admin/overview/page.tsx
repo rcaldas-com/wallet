@@ -2,8 +2,10 @@ import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { getCurrentUser, hasRole } from '@/app/lib/auth';
 import { buildOverview } from '@/app/lib/overview';
+import { listTrippedCoins } from '@/app/lib/price-monitor';
 import ThemeToggle from '@/app/components/theme-toggle';
 import AutoRefresh from '@/app/components/auto-refresh';
+import PriceBreakerPanel from './price-breaker-panel';
 
 export const dynamic = 'force-dynamic';
 
@@ -17,6 +19,7 @@ export default async function AdminOverviewPage() {
 
   const o = await buildOverview(user._id);
   const negative = o.netBrl < 0;
+  const trippedCoins = await listTrippedCoins();
 
   return (
     <>
@@ -44,6 +47,8 @@ export default async function AdminOverviewPage() {
       </header>
 
       <div className="max-w-5xl mx-auto px-4 py-8 space-y-6">
+        <PriceBreakerPanel items={trippedCoins} />
+
         {o.unpriced.length > 0 && (
           <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-900 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-200">
             <p className="font-semibold mb-1">Moedas sem cotação</p>

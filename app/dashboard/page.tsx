@@ -6,6 +6,7 @@ import { getUserMovements, listIssuerKeys } from '@/app/lib/data-wallet';
 import { listWalletsForReading, readWallets } from '@/app/lib/wallets';
 import type { RawBalance } from '@/app/lib/stellar';
 import { valueBalancesInBrl, getBrlPrice } from '@/app/lib/quotes';
+import { listTrippedCoins } from '@/app/lib/price-monitor';
 import type { CoinBalance } from '@/app/lib/definitions';
 import { getCoinCatalog, sortCoins } from '@/app/lib/coin-catalog';
 import WithdrawForm from './withdraw-form';
@@ -91,6 +92,12 @@ export default async function DashboardPage() {
   const movements = await getUserMovements(user._id);
   const isEmpty = coins.length === 0 && movements.length === 0;
 
+  // Disjuntor de cotação: avisa se alguma moeda que o usuário tem está com a
+  // cotação suspensa por variação anômala — conversão/saque dela ficam
+  // bloqueados até normalizar ou o admin liberar (ver price-monitor.ts).
+  const heldCoins = new Set(coins.map((c) => c.coin));
+  const trippedHeld = (await listTrippedCoins()).filter((t) => heldCoins.has(t.coin));
+
   // Catálogo completo (issuers + XLM) e o preço unitário em BRL de cada um —
   // alimenta o select "Para" da conversão e a prévia "≈ X moeda", inclusive
   // pra moedas que o usuário ainda não tem.
@@ -168,6 +175,17 @@ export default async function DashboardPage() {
       </header>
 
       <div className="max-w-4xl mx-auto px-4 py-8 space-y-6">
+        {trippedHeld.length > 0 && (
+          <section className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-900 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-200">
+            <p className="font-semibold mb-1">⚠ Cotação suspensa</p>
+            <p>
+              {trippedHeld.map((t) => t.coin).join(', ')} com variação de preço anômala —
+              conversão e saque {trippedHeld.length > 1 ? 'dessas moedas estão' : 'dessa moeda está'} temporariamente
+              bloqueados até a cotação normalizar ou um admin liberar manualmente.
+            </p>
+          </section>
+        )}
+
         {/* Saldo total */}
         <section className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-emerald-600 to-teal-700 text-white shadow-lg p-6 sm:p-8">
           <div className="relative z-10">

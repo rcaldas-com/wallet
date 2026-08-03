@@ -2,6 +2,7 @@ import 'server-only';
 import type { CoinBalance } from './definitions';
 import type { RawBalance } from './stellar';
 import { getStellarPathPriceInXlm } from './stellar';
+import { recordPrice } from './price-monitor';
 
 // URL do microserviço de cotações (ccxt). No compose, nome do serviço "ccxt".
 const CCXT_URL = process.env.CCXT_URL || 'http://ccxt:8000';
@@ -19,26 +20,40 @@ const PRICE_ALIAS: Record<string, string> = { 'XLM nativo': 'XLM' };
 const PRICE_TTL_MS = 30_000;
 const priceCache = new Map<string, { price: number; at: number }>();
 
-// Busca o preço de 1 unidade de `coin` em BRL via microserviço ccxt.
-// Retorna null quando indisponível.
+// Busca o preço de 1 unidade de `coin` em BRL via microserviço ccxt, com
+// cache e proteção contra cotação anômala (ver price-monitor.ts — histórico
+// curto de leituras validadas, disjuntor por desvio da média, não por
+// comparação isolada com a última leitura). Retorna null só quando
+// indisponível e sem nenhum preço anterior (nem em cache, nem no histórico
+// do disjuntor) para cair de volta.
 async function fetchBrlPrice(coin: string): Promise<number | null> {
   const cached = priceCache.get(coin);
   if (cached && Date.now() - cached.at < PRICE_TTL_MS) {
     return cached.price;
   }
+
   try {
     const res = await fetch(
       `${CCXT_URL}/price?base=${encodeURIComponent(coin)}&quote=${BASE_COIN}`,
       { cache: 'no-store', signal: AbortSignal.timeout(8000) },
     );
-    if (!res.ok) return null;
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = (await res.json()) as { price?: number };
-    if (typeof data.price !== 'number' || !isFinite(data.price)) return null;
-    priceCache.set(coin, { price: data.price, at: Date.now() });
-    return data.price;
+    if (typeof data.price !== 'number' || !isFinite(data.price) || data.price <= 0) {
+      throw new Error('preço inválido na resposta');
+    }
+
+    // O disjuntor decide o preço "efetivo": o próprio valor se aceito, ou o
+    // baseline congelado se a leitura estiver fora da faixa histórica normal.
+    const { price: effective } = await recordPrice(coin, data.price);
+    priceCache.set(coin, { price: effective, at: Date.now() });
+    return effective;
   } catch (err) {
     console.error(`Falha ao obter cotação ${coin}/BRL:`, err);
-    return null;
+    // Falha transitória de rede/serviço: mantém servindo o último preço em
+    // cache (mesmo expirado) em vez de propagar "sem cotação" por uma falha
+    // de um único ciclo.
+    return cached?.price ?? null;
   }
 }
 

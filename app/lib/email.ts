@@ -74,6 +74,35 @@ export async function sendWithdrawRequestEmail(data: WithdrawRequestEmailData) {
   }
 }
 
+type PriceAnomalyEmailData = {
+  admins: string[];
+  coin: string;
+  kind: 'tripped' | 'recovered';
+  price: number;
+  baselineAvg: number;
+  deviationPct?: number;
+};
+
+export async function sendPriceAnomalyEmail(data: PriceAnomalyEmailData) {
+  const subject =
+    data.kind === 'tripped'
+      ? `⚠ Cotação suspeita: ${data.coin} bloqueado`
+      : `Cotação de ${data.coin} normalizada`;
+
+  const fmt = (n: number) => n.toLocaleString('pt-BR', { maximumFractionDigits: 8 });
+  for (const admin of data.admins) {
+    await enqueueEmail(admin, subject, 'price-anomaly', {
+      coin: data.coin,
+      kind: data.kind,
+      price: fmt(data.price),
+      baselineAvg: fmt(data.baselineAvg),
+      deviationPct: data.deviationPct != null ? data.deviationPct.toFixed(1) : '',
+      app: APP_NAME,
+      walletUrl: `${WALLET_URL}/dashboard/admin/overview`,
+    });
+  }
+}
+
 type WithdrawProcessedEmailData = {
   email: string;
   name: string;

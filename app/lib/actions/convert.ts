@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { requireWalletAccess } from '@/app/lib/auth';
 import { executeConversion } from '@/app/lib/stellar';
 import { getBrlPrice, getBrlValue } from '@/app/lib/quotes';
+import { getPriceStatus } from '@/app/lib/price-monitor';
 import { listIssuerKeys, recordConversion } from '@/app/lib/data-wallet';
 
 export type ConvertState = {
@@ -47,6 +48,18 @@ export async function requestConversion(
   }
   if (fromCoin === toCoin) {
     return { success: false, message: 'Escolha moedas diferentes.' };
+  }
+
+  const [fromStatus, toStatus] = await Promise.all([
+    getPriceStatus(fromCoin),
+    getPriceStatus(toCoin),
+  ]);
+  const trippedCoin = fromStatus.tripped ? fromCoin : toStatus.tripped ? toCoin : null;
+  if (trippedCoin) {
+    return {
+      success: false,
+      message: `Conversão de ${trippedCoin} temporariamente bloqueada: cotação com variação anômala. Aguarde a normalização ou a liberação de um admin.`,
+    };
   }
 
   const normalized = normalizeAmount(String(formData.get('amount') || ''));
