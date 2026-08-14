@@ -1,4 +1,4 @@
-FROM node:22
+FROM node:24
 LABEL maintainer="RCaldas <docker@rcaldas.com>"
 
 WORKDIR /app
