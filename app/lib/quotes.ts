@@ -1,4 +1,5 @@
 import 'server-only';
+import { cache } from 'react';
 import type { CoinBalance } from './definitions';
 import type { RawBalance } from './stellar';
 import { getStellarPathPriceInXlm } from './stellar';
@@ -61,7 +62,21 @@ async function fetchBrlPrice(coin: string): Promise<number | null> {
 // `issuer`, quando informado, habilita um fallback via a própria rede Stellar
 // (path payment até XLM) para ativos sem par nas exchanges centralizadas —
 // caso de tokens nativos do ecossistema Stellar como AQUA.
-export async function getBrlPrice(coin: string, issuer?: string): Promise<number | null> {
+//
+// cache() do React: memoiza por (coin, issuer) dentro do mesmo request. O
+// fetchBrlPrice acima já tem seu próprio cache em memória (TTL 30s, todo o
+// processo), então isto não muda nada pro caminho direto — mas o fallback via
+// Stellar (getStellarPathPriceInXlm, consulta on-chain ao Horizon) não é
+// cacheado, e é chamado de novo do zero a cada getBrlPrice repetido. Isso
+// acontecia de verdade: dashboard/page.tsx cota os saldos do usuário
+// (valueBalancesInBrl) e depois cota o catálogo inteiro pra prévia de
+// conversão — os dois passam pelas mesmas moedas que o usuário já tem; e em
+// overview.ts, uma moeda detida por vários usuários tem seu preço recalculado
+// uma vez por usuário. Não recalcula nada pós-escrita: getBrlPrice não lê
+// nenhum estado que as ações do wallet (depósito/saque/conversão) escrevam —
+// preço é cotação externa, e o disjuntor (recordPrice/listTrippedCoins) é
+// gravação e leitura de estados diferentes, não afetados por este cache.
+export const getBrlPrice = cache(async (coin: string, issuer?: string): Promise<number | null> => {
   coin = PRICE_ALIAS[coin] ?? coin;
   if (coin === BASE_COIN) return 1;
   const direct = await fetchBrlPrice(coin);
@@ -73,7 +88,7 @@ export async function getBrlPrice(coin: string, issuer?: string): Promise<number
   const xlmBrl = await fetchBrlPrice('XLM');
   if (xlmBrl === null) return null;
   return priceInXlm * xlmBrl;
-}
+});
 
 // Valor em BRL de `amount` unidades de `coin`. Moeda sem cotação vale 0 —
 // use `getBrlPrice` quando precisar distinguir "vale zero" de "não sei o preço".

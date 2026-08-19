@@ -1,3 +1,4 @@
+import { cache } from 'react';
 import { ObjectId } from 'mongodb';
 import clientPromise from './mongodb';
 import { AuthUser, UserRole } from './definitions';
@@ -23,7 +24,13 @@ function normalizeRoles(user: Record<string, unknown>): UserRole[] {
 
 // Autenticação (login, cadastro, verificação de email) é responsabilidade do
 // app principal. Aqui só resolvemos o usuário da sessão compartilhada.
-export async function getUserById(userId: string): Promise<AuthUser | null> {
+//
+// cache() do React: getCurrentUser (auth.ts) chama isto pro usuário efetivo, e
+// o ImpersonateBanner chama de novo pro mesmo id durante uma impersonation —
+// memoiza por request pra não repetir a consulta ao Mongo. Nenhum fluxo
+// escreve no doc `user` e relê via esta função no mesmo request (a troca de
+// tema grava direto via updateOne, sem passar por aqui).
+export const getUserById = cache(async (userId: string): Promise<AuthUser | null> => {
   try {
     const client = await clientPromise;
     const db = client.db();
@@ -52,4 +59,4 @@ export async function getUserById(userId: string): Promise<AuthUser | null> {
     console.error('Database Error:', error);
     return null;
   }
-}
+});

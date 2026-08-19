@@ -1,3 +1,4 @@
+import { cache } from 'react';
 import { SignJWT, jwtVerify } from 'jose';
 
 // Sem dependências de banco — pode rodar no middleware (Edge runtime).
@@ -23,10 +24,15 @@ export async function signSessionToken(
 
 // Verifica e decodifica o token. Retorna null se ausente, expirado, adulterado
 // ou de um `purpose` diferente do esperado.
-export async function verifySessionToken(
+//
+// cache() do React: chamada com o mesmo (token, purpose) tanto pela cadeia de
+// auth (getSessionUserId) quanto, de forma independente, pelo ImpersonateBanner
+// — memoiza por request para não reverificar o mesmo JWT duas vezes na mesma
+// renderização.
+export const verifySessionToken = cache(async (
   token: string | undefined | null,
   purpose = 'session',
-): Promise<string | null> {
+): Promise<string | null> => {
   if (!token) return null;
   try {
     const { payload } = await jwtVerify(token, secret);
@@ -35,4 +41,4 @@ export async function verifySessionToken(
   } catch {
     return null;
   }
-}
+});
