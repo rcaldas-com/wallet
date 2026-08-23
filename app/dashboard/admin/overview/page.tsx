@@ -1,9 +1,8 @@
 import { redirect } from 'next/navigation';
-import Link from 'next/link';
 import { getCurrentUser, hasRole } from '@/app/lib/auth';
 import { buildOverview } from '@/app/lib/overview';
 import { listTrippedCoins } from '@/app/lib/price-monitor';
-import ThemeToggle from '@/app/components/theme-toggle';
+import Header from '@/app/components/header';
 import AutoRefresh from '@/app/components/auto-refresh';
 import PriceBreakerPanel from './price-breaker-panel';
 
@@ -25,26 +24,7 @@ export default async function AdminOverviewPage() {
     <>
       <AutoRefresh />
       <main className="min-h-screen bg-gray-50 dark:bg-zinc-950">
-      <header className="bg-emerald-600 text-white shadow">
-        <div className="max-w-5xl mx-auto px-4 py-4 flex items-center justify-between">
-          <Link href="/" className="text-xl font-bold hover:opacity-90 transition">💰 Wallet · Visão geral</Link>
-          <div className="flex items-center gap-3">
-            <ThemeToggle loggedIn />
-            <Link href="/dashboard/admin/deposit" className="text-sm bg-white/15 hover:bg-white/25 px-3 py-1 rounded transition">
-              Depósito
-            </Link>
-            <Link href="/dashboard/admin/withdraw" className="text-sm bg-white/15 hover:bg-white/25 px-3 py-1 rounded transition">
-              Saques
-            </Link>
-            <Link href="/dashboard/admin/issuers" className="text-sm bg-white/15 hover:bg-white/25 px-3 py-1 rounded transition">
-              Issuers
-            </Link>
-            <Link href="/dashboard" className="text-sm bg-emerald-700 hover:bg-emerald-800 px-3 py-1 rounded transition">
-              Voltar
-            </Link>
-          </div>
-        </div>
-      </header>
+      <Header user={user} isAdmin active="overview" />
 
       <div className="max-w-5xl mx-auto px-4 py-8 space-y-6">
         <PriceBreakerPanel items={trippedCoins} />

@@ -1,9 +1,8 @@
 import { redirect } from 'next/navigation';
-import Link from 'next/link';
 import { getCurrentUser, hasRole } from '@/app/lib/auth';
 import { listIssuersAdmin } from '@/app/lib/data-wallet';
 import { getAccountBalances } from '@/app/lib/stellar';
-import ThemeToggle from '@/app/components/theme-toggle';
+import Header from '@/app/components/header';
 import IssuersManager, { type IssuerRow } from './issuers-manager';
 
 export const dynamic = 'force-dynamic';
@@ -27,20 +26,7 @@ export default async function AdminIssuersPage() {
 
   return (
     <main className="min-h-screen bg-gray-50 dark:bg-zinc-950">
-      <header className="bg-emerald-600 text-white shadow">
-        <div className="max-w-4xl mx-auto px-4 py-4 flex items-center justify-between">
-          <Link href="/" className="text-xl font-bold hover:opacity-90 transition">💰 Wallet · Issuers</Link>
-          <div className="flex items-center gap-3">
-            <ThemeToggle loggedIn />
-            <Link href="/dashboard/admin/overview" className="text-sm bg-white/15 hover:bg-white/25 px-3 py-1 rounded transition">
-              Visão geral
-            </Link>
-            <Link href="/dashboard" className="text-sm bg-emerald-700 hover:bg-emerald-800 px-3 py-1 rounded transition">
-              Voltar
-            </Link>
-          </div>
-        </div>
-      </header>
+      <Header user={user} isAdmin active="issuers" />
 
       <div className="max-w-4xl mx-auto px-4 py-8">
         <h2 className="text-2xl font-semibold text-gray-800 dark:text-zinc-100 mb-1">Issuers</h2>

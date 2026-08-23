@@ -1,7 +1,5 @@
 import { redirect } from 'next/navigation';
-import Link from 'next/link';
 import { getCurrentUser, canUseWallet, hasRole } from '@/app/lib/auth';
-import { logoutAction } from '@/app/lib/actions/users';
 import { getUserMovements, listIssuerKeys } from '@/app/lib/data-wallet';
 import { listWalletsForReading, readWallets } from '@/app/lib/wallets';
 import type { RawBalance } from '@/app/lib/stellar';
@@ -13,7 +11,7 @@ import WithdrawForm from './withdraw-form';
 import ConvertForm from './convert-form';
 import CoinCard, { type CoinSource } from './coin-card';
 import CancelWithdrawButton from './cancel-withdraw-button';
-import ThemeToggle from '@/app/components/theme-toggle';
+import Header from '@/app/components/header';
 import AutoRefresh from '@/app/components/auto-refresh';
 
 export const dynamic = 'force-dynamic';
@@ -120,59 +118,7 @@ export default async function DashboardPage() {
     <>
       <AutoRefresh />
       <main className="min-h-screen bg-gray-50 dark:bg-zinc-950">
-      <header className="bg-emerald-600 text-white shadow">
-        <div className="max-w-4xl mx-auto px-4 py-4 flex items-center justify-between">
-          <Link href="/" className="text-xl font-bold hover:opacity-90 transition">💰 Wallet</Link>
-          <div className="flex items-center gap-4">
-            <ThemeToggle loggedIn />
-            {isAdmin && (
-              <>
-                <Link
-                  href="/dashboard/admin/overview"
-                  className="text-sm bg-white/15 hover:bg-white/25 px-3 py-1 rounded transition"
-                >
-                  Visão geral
-                </Link>
-                <Link
-                  href="/dashboard/admin/deposit"
-                  className="text-sm bg-white/15 hover:bg-white/25 px-3 py-1 rounded transition"
-                >
-                  Depósito
-                </Link>
-                <Link
-                  href="/dashboard/admin/withdraw"
-                  className="text-sm bg-white/15 hover:bg-white/25 px-3 py-1 rounded transition"
-                >
-                  Saques
-                </Link>
-                <Link
-                  href="/dashboard/admin/issuers"
-                  className="text-sm bg-white/15 hover:bg-white/25 px-3 py-1 rounded transition"
-                >
-                  Issuers
-                </Link>
-              </>
-            )}
-            {/* O wallet não tem tela de perfil própria nem outro link de volta
-                ao site principal — o nome vira o caminho de retorno. */}
-            <a
-              href={`${process.env.AUTH_TRUST_HOST || ''}/dashboard`}
-              className="text-sm hover:underline"
-              title="Voltar para o RCaldas"
-            >
-              {user.name}
-            </a>
-            <form action={logoutAction}>
-              <button
-                type="submit"
-                className="text-sm bg-emerald-700 hover:bg-emerald-800 px-3 py-1 rounded transition"
-              >
-                Sair
-              </button>
-            </form>
-          </div>
-        </div>
-      </header>
+      <Header user={user} isAdmin={isAdmin} active="dashboard" />
 
       <div className="max-w-4xl mx-auto px-4 py-8 space-y-6">
         {trippedHeld.length > 0 && (

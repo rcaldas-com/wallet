@@ -1,10 +1,9 @@
 import { redirect } from 'next/navigation';
-import Link from 'next/link';
 import { getCurrentUser, hasRole } from '@/app/lib/auth';
 import { listUsers } from '@/app/lib/data-wallet';
 import { getCoinCatalog } from '@/app/lib/coin-catalog';
 import DepositForm from './deposit-form';
-import ThemeToggle from '@/app/components/theme-toggle';
+import Header from '@/app/components/header';
 
 export default async function AdminDepositPage() {
   const user = await getCurrentUser();
@@ -17,20 +16,7 @@ export default async function AdminDepositPage() {
 
   return (
     <main className="min-h-screen bg-gray-50 dark:bg-zinc-950">
-      <header className="bg-emerald-600 text-white shadow">
-        <div className="max-w-4xl mx-auto px-4 py-4 flex items-center justify-between">
-          <Link href="/" className="text-xl font-bold hover:opacity-90 transition">💰 Wallet · Admin</Link>
-          <div className="flex items-center gap-3">
-            <ThemeToggle loggedIn />
-            <Link href="/dashboard/admin/issuers" className="text-sm bg-white/15 hover:bg-white/25 px-3 py-1 rounded transition">
-              Issuers
-            </Link>
-            <Link href="/dashboard" className="text-sm bg-emerald-700 hover:bg-emerald-800 px-3 py-1 rounded transition">
-              Voltar
-            </Link>
-          </div>
-        </div>
-      </header>
+      <Header user={user} isAdmin active="deposit" />
 
       <div className="max-w-2xl mx-auto px-4 py-8">
         <h2 className="text-2xl font-semibold text-gray-800 dark:text-zinc-100 mb-1">Registrar depósito</h2>
