@@ -23,6 +23,19 @@ const PRICE_ALIAS: Record<string, string> = { 'XLM nativo': 'XLM' };
 const PRICE_TTL_MS = 30_000;
 const priceCache = new Map<string, { price: number; at: number }>();
 
+// Cache do lado NEGATIVO — sem isso, uma moeda que o ccxt nunca listou (ex.:
+// AQUA, só tem preço via path payment na rede Stellar, ver getBrlPrice)
+// falha em TODA chamada, pra sempre, e cada falha loga erro. Com o
+// auto-refresh batendo a cada 30s isso virou log sustentado o suficiente
+// pra abrir incidente sozinho (visto em produção). Preço "sumido" de um par
+// não muda minuto a minuto — nem numa falha real (outage do ccxt), nem numa
+// ausência permanente (símbolo nunca vai aparecer lá) — então um backoff
+// bem mais longo que o cache positivo é seguro: o pior caso é notar uma
+// exchange voltando ao ar com alguns minutos de atraso, em troca de não
+// martelar (nem logar) uma falha já conhecida a cada 30s.
+const NEGATIVE_PRICE_TTL_MS = 10 * 60_000;
+const negativePriceCache = new Map<string, number>();
+
 // Busca o preço de 1 unidade de `coin` em BRL via microserviço ccxt, com
 // cache e proteção contra cotação anômala (ver price-monitor.ts — histórico
 // curto de leituras validadas, disjuntor por desvio da média, não por
@@ -33,6 +46,11 @@ async function fetchBrlPrice(coin: string): Promise<number | null> {
   const cached = priceCache.get(coin);
   if (cached && Date.now() - cached.at < PRICE_TTL_MS) {
     return cached.price;
+  }
+
+  const failedAt = negativePriceCache.get(coin);
+  if (failedAt && Date.now() - failedAt < NEGATIVE_PRICE_TTL_MS) {
+    return cached?.price ?? null;
   }
 
   try {
@@ -50,9 +68,11 @@ async function fetchBrlPrice(coin: string): Promise<number | null> {
     // baseline congelado se a leitura estiver fora da faixa histórica normal.
     const { price: effective } = await recordPrice(coin, data.price);
     priceCache.set(coin, { price: effective, at: Date.now() });
+    negativePriceCache.delete(coin);
     return effective;
   } catch (err) {
     console.error(`Falha ao obter cotação ${coin}/BRL:`, err);
+    negativePriceCache.set(coin, Date.now());
     // Falha transitória de rede/serviço: mantém servindo o último preço em
     // cache (mesmo expirado) em vez de propagar "sem cotação" por uma falha
     // de um único ciclo.
