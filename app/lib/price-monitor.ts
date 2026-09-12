@@ -187,13 +187,31 @@ export async function listTrippedCoins(): Promise<PriceStatus[]> {
   }
 }
 
-/** Libera manualmente o disjuntor de uma moeda (admin). Mantém o histórico —
- * só limpa o estado de travado. */
+/** Libera manualmente o disjuntor de uma moeda (admin) — reativar significa
+ * "aceito o preço atual como o novo normal", então limpa o histórico junto
+ * com o travamento. Sem isso, a próxima leitura recalcula a média contra o
+ * MESMO histórico velho que já causou o disparo e trava de novo antes de
+ * qualquer leitura nova entrar — reativar nunca "pegava" de verdade, cada
+ * clique só adiava o próximo disparo idêntico pro ciclo seguinte (bug real,
+ * ficou muito mais visível depois do tick agendado rodar a cada poucos
+ * minutos em vez de só quando alguém abria o dashboard). As próximas
+ * MIN_HISTORY_FOR_CHECK leituras só acumulam histórico novo, sem checar
+ * anomalia — janela curta e aceitável pra reconstruir uma média confiável. */
 export async function resetBreaker(coin: string, adminId: string): Promise<boolean> {
   const col = await getCollection();
   const res = await col.updateOne(
     { coin, tripped: true },
-    { $set: { tripped: false, notifiedAt: null, resetAt: new Date(), resetBy: adminId, updatedAt: new Date() } },
+    {
+      $set: {
+        tripped: false,
+        history: [],
+        baselineAvg: null,
+        notifiedAt: null,
+        resetAt: new Date(),
+        resetBy: adminId,
+        updatedAt: new Date(),
+      },
+    },
   );
   return res.modifiedCount > 0;
 }
