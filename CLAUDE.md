@@ -36,8 +36,64 @@ This is **not** a ledger in a database — balances live on-chain.
 - `app/lib/data-wallet.ts` — Mongo access.
 - `app/lib/price-monitor.ts` — quote circuit breaker (recent addition —
   see git log, "Adiciona disjuntor de cotação").
+- `app/lib/portfolio-history.ts` — periodic per-user BRL value snapshots
+  (see "Scheduled tick" below).
 - Emails go through the shared Redis queue `email:send`, processed by
   the shared `emailer` service (templates in `~/rcaldas/emailer/templates/`).
+
+## Scheduled tick (`POST /api/internal/tick`)
+
+Next.js has no built-in cron, and until this existed the price disjuntor
+(`price-monitor.ts`) only ever got fed by whoever happened to load the
+dashboard — go several days without a visit and the first visit back
+compares today's price against a days-old baseline, tripping the breaker
+for several coins at once (real bug reported by the user, not
+hypothetical). This endpoint decouples "the work" (stays here, in
+TypeScript, reusing the exact same functions a page render would call)
+from "the schedule" (deliberately NOT solved inside this repo — see
+below).
+
+Two things happen per tick, best-effort/independent
+(`Promise.allSettled`, one failing doesn't block the other):
+1. `refreshAllPrices()` (`quotes.ts`) — prices every catalog coin once,
+   keeping the disjuntor's rolling history warm regardless of traffic.
+2. `capturePortfolioSnapshots()` (`portfolio-history.ts`) — one BRL-value
+   snapshot per user with at least one wallet, into `portfolioSnapshot`.
+   Foundation for a future "value over time" chart — no chart UI yet,
+   just the data collection (needs the tick actually running for a while
+   to have anything to plot).
+
+Auth: header `x-internal-secret` must match `INTERNAL_TICK_SECRET`
+(env). Unset → the endpoint fails closed (401 on every call) rather than
+accepting unauthenticated requests — this is deliberate, not a bug to
+"fix" by relaxing it.
+
+**Who calls this, and how often, is intentionally NOT decided in this
+repo.** It's cross-cutting infra (the same "something needs to run on a
+schedule, not tied to user traffic" problem as the fleet's host-down
+sweep in `web/lib/monitor.ts`), so the trigger belongs in that project's
+monitor system, not bolted onto wallet as a one-off. See
+`monitor/MONITOR.md` at the root of the `rcaldas` (dev) repo for that
+system's current shape — as of this writing it already solved the exact
+same class of problem for host-down detection by piggybacking on
+existing heartbeat traffic with a Redis `NX` lock
+(`sweepOfflineHostsThrottled`/`OFFLINE_SWEEP_LOCK`) instead of a
+dedicated poller service (a dedicated `monitor-worker` container was
+tried for that and removed — reimplemented worse what
+`upsertIncident`/`resolveIncident` already did). Recommended interval:
+~5 minutes.
+
+## Deposit/withdraw value at time of movement (`valueBrl`)
+
+`deposit` and `withdraw` docs now carry a `valueBrl` field — the BRL
+value of the amount at the moment the movement was recorded (best-effort;
+`null` if the price lookup failed, and always `null` on movements from
+before this field existed — there's no way to reconstruct a historical
+quote after the fact). Set in `actions/deposit.ts`/`actions/withdraw.ts`
+via `getBrlPrice` at record time, never recalculated. Powers the
+"invested vs. now" comparison in the dashboard's movement history and the
+summary P&L card (both silently work with partial data — a user with
+only pre-feature deposits just doesn't see the card yet).
 
 ## Status as of last work here
 

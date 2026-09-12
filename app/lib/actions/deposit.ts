@@ -5,8 +5,8 @@ import { revalidatePath } from 'next/cache';
 import { requireAdmin } from '@/app/lib/auth';
 import { depositCoin } from '@/app/lib/stellar';
 import { listWalletsForReading, readWallets } from '@/app/lib/wallets';
-import { valueBalancesInBrl } from '@/app/lib/quotes';
-import { recordDeposit, getUserName } from '@/app/lib/data-wallet';
+import { valueBalancesInBrl, getBrlPrice } from '@/app/lib/quotes';
+import { recordDeposit, getUserName, listIssuerKeys } from '@/app/lib/data-wallet';
 import { sendDepositEmail } from '@/app/lib/email';
 import { uploadReceiptFile } from '@/app/lib/file-upload';
 import { getCoinDisplayName } from '@/app/lib/coin-catalog';
@@ -77,8 +77,24 @@ export async function createDeposit(
     `deposit-${userId}`,
   );
 
+  // Cotação de referência no momento do depósito — guardada como fato
+  // histórico (histórico de rendimento no dashboard), nunca recalculada
+  // depois. Best-effort: se a cotação falhar, o depósito não deixa de ser
+  // registrado, só fica sem o valor em BRL daquele momento (null, não 0 —
+  // getBrlValue colapsaria "sem cotação" em 0, o que pareceria um
+  // depósito que "não valia nada").
+  let valueBrl: number | null = null;
+  try {
+    const issuers = await listIssuerKeys();
+    const issuer = issuers.find((i) => i.name === coin)?.publicKey;
+    const price = await getBrlPrice(coin, issuer);
+    valueBrl = price === null ? null : Number(amount) * price;
+  } catch (err) {
+    console.error('Falha ao cotar valor do depósito em BRL:', err);
+  }
+
   // Registra no histórico.
-  await recordDeposit({ userId, amount, coin, desc, receiptFile });
+  await recordDeposit({ userId, amount, coin, desc, receiptFile, valueBrl });
 
   // Envia o email de confirmação com o total atualizado (best-effort).
   try {

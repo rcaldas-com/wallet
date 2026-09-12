@@ -127,6 +127,8 @@ export async function recordWithdrawRequest(params: {
   coin: string;
   destination: string;
   desc?: string;
+  // Valor em BRL no momento do pedido — mesmo raciocínio de recordDeposit.
+  valueBrl?: number | null;
 }): Promise<void> {
   const client = await clientPromise;
   await client.db().collection('withdraw').insertOne({
@@ -135,6 +137,7 @@ export async function recordWithdrawRequest(params: {
     coin: params.coin,
     destination: params.destination,
     desc: params.desc || null,
+    valueBrl: params.valueBrl ?? null,
     status: 'requested',
     timestamp: new Date(),
   });
@@ -274,6 +277,10 @@ export async function recordDeposit(params: {
   coin: string;
   desc?: string;
   receiptFile?: FileAttachment | null;
+  // Valor em BRL no momento do depósito (cotação já resolvida por quem
+  // chama, com o issuer certo) — null quando a cotação não estava
+  // disponível. Guardado como fato histórico, nunca recalculado depois.
+  valueBrl?: number | null;
 }): Promise<void> {
   const client = await clientPromise;
   await client.db().collection('deposit').insertOne({
@@ -282,6 +289,7 @@ export async function recordDeposit(params: {
     coin: params.coin,
     desc: params.desc || null,
     receiptFile: params.receiptFile || null,
+    valueBrl: params.valueBrl ?? null,
     timestamp: new Date(),
   });
 }
@@ -346,6 +354,7 @@ export async function getUserMovements(userId: string, limit = 100): Promise<Mov
       timestamp: d.timestamp ?? d._id.getTimestamp(),
       fileUrl: (d.receiptFile as FileAttachment | null)?.url ?? null,
       fileName: (d.receiptFile as FileAttachment | null)?.originalName ?? null,
+      valueBrl: (d.valueBrl as number | null | undefined) ?? null,
     })),
     ...withdraws.map((w) => ({
       _id: w._id.toString(),
@@ -357,6 +366,7 @@ export async function getUserMovements(userId: string, limit = 100): Promise<Mov
       timestamp: w.timestamp ?? w._id.getTimestamp(),
       fileUrl: (w.proofFile as FileAttachment | null)?.url ?? null,
       fileName: (w.proofFile as FileAttachment | null)?.originalName ?? null,
+      valueBrl: (w.valueBrl as number | null | undefined) ?? null,
     })),
     ...conversions.map((c) => ({
       _id: c._id.toString(),

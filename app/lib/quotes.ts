@@ -4,6 +4,8 @@ import type { CoinBalance } from './definitions';
 import type { RawBalance } from './stellar';
 import { getStellarPathPriceInXlm } from './stellar';
 import { recordPrice } from './price-monitor';
+import { getCoinCatalog } from './coin-catalog';
+import { listIssuerKeys } from './data-wallet';
 
 // URL do microserviço de cotações (ccxt). No compose, nome do serviço "ccxt".
 const CCXT_URL = process.env.CCXT_URL || 'http://ccxt:8000';
@@ -96,6 +98,29 @@ export async function getBrlValue(coin: string, amount: number, issuer?: string)
   const price = await getBrlPrice(coin, issuer);
   if (price === null) return 0;
   return amount * price;
+}
+
+// Consulta o preço de toda moeda do catálogo, uma vez cada — chamado pela
+// rotina agendada (ver app/api/internal/tick), não por uma página. Existe
+// porque o disjuntor (price-monitor.ts) só recebia leitura quando alguém
+// abria o dashboard: sem visita por vários dias, o histórico de preços
+// "normais" ficava velho, e a primeira visita depois disso comparava o
+// preço de hoje contra uma média de dias atrás — variação real e gradual
+// parecia anomalia repentina, disparando o disjuntor de várias moedas de
+// uma vez só. Rodar isto num intervalo curto e regular mantém a janela do
+// disjuntor sempre recente, então só sobra como "anomalia" o que de fato
+// saltou dentro da janela.
+export async function refreshAllPrices(): Promise<{ checked: number; unpriced: string[] }> {
+  const [catalog, issuers] = await Promise.all([getCoinCatalog(), listIssuerKeys()]);
+  const issuerByName = new Map(issuers.map((i) => [i.name, i.publicKey]));
+  const symbols = [...catalog.priority, ...catalog.others].map((c) => c.symbol);
+
+  const unpriced: string[] = [];
+  for (const symbol of symbols) {
+    const price = await getBrlPrice(symbol, issuerByName.get(symbol));
+    if (price === null) unpriced.push(symbol);
+  }
+  return { checked: symbols.length, unpriced };
 }
 
 // Converte uma lista de saldos brutos em saldos com valor em BRL.

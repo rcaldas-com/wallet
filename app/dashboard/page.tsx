@@ -5,7 +5,7 @@ import { listWalletsForReading, readWallets } from '@/app/lib/wallets';
 import type { RawBalance } from '@/app/lib/stellar';
 import { valueBalancesInBrl, getBrlPrice } from '@/app/lib/quotes';
 import { listTrippedCoins } from '@/app/lib/price-monitor';
-import type { CoinBalance } from '@/app/lib/definitions';
+import type { CoinBalance, Movement } from '@/app/lib/definitions';
 import { getCoinCatalog, sortCoins } from '@/app/lib/coin-catalog';
 import WithdrawForm from './withdraw-form';
 import ConvertForm from './convert-form';
@@ -22,6 +22,21 @@ const num = (v: number) =>
   v.toLocaleString('pt-BR', { maximumFractionDigits: 7 });
 const dateTime = (d: Date) =>
   new Date(d).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short', timeZone: 'America/Sao_Paulo' });
+
+// Quanto a mesma quantidade depositada vale hoje, pra comparar com o valor
+// em BRL registrado no momento do depósito. null quando falta um dos dois
+// lados (depósito anterior a este campo existir, ou moeda sem cotação hoje).
+function depositPerformance(
+  m: Movement,
+  priceMap: Record<string, number>,
+): { todayValueBrl: number; deltaPct: number | null } | null {
+  if (m.kind !== 'deposit' || m.valueBrl == null) return null;
+  const price = priceMap[m.coin];
+  if (price == null) return null;
+  const todayValueBrl = Number(m.amount) * price;
+  const deltaPct = m.valueBrl > 0 ? ((todayValueBrl - m.valueBrl) / m.valueBrl) * 100 : null;
+  return { todayValueBrl, deltaPct };
+}
 
 export default async function DashboardPage() {
   const user = await getCurrentUser();
@@ -114,6 +129,23 @@ export default async function DashboardPage() {
     if (price !== null) priceMap[symbol] = price;
   }
 
+  // Resultado (investido vs. valor atual): só soma o que tem valueBrl
+  // registrado (depósitos/saques de antes deste campo existir ficam de
+  // fora — não dá pra reconstruir a cotação histórica). Saque só entra
+  // depois de 'completed' — 'requested' ainda não saiu da carteira on-chain
+  // (a baixa só acontece na confirmação do admin), continuaria contando no
+  // saldo atual.
+  const totalInvestedBrl = movements
+    .filter((m) => m.kind === 'deposit' && m.valueBrl != null)
+    .reduce((s, m) => s + (m.valueBrl ?? 0), 0);
+  const totalWithdrawnBrl = movements
+    .filter((m) => m.kind === 'withdraw' && m.status === 'completed' && m.valueBrl != null)
+    .reduce((s, m) => s + (m.valueBrl ?? 0), 0);
+  const netContributedBrl = totalInvestedBrl - totalWithdrawnBrl;
+  const resultBrl = totalBrl - netContributedBrl;
+  const resultPct = netContributedBrl > 0 ? (resultBrl / netContributedBrl) * 100 : null;
+  const hasPnlData = totalInvestedBrl > 0;
+
   return (
     <>
       <AutoRefresh />
@@ -143,6 +175,37 @@ export default async function DashboardPage() {
           </div>
           <FinanceArt />
         </section>
+
+        {hasPnlData && (
+          <section className="rounded-xl border border-gray-100 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <div>
+                <p className="text-xs text-gray-500 dark:text-zinc-400">Investido (histórico)</p>
+                <p className="text-lg font-semibold text-gray-800 dark:text-zinc-100">{brl(netContributedBrl)}</p>
+              </div>
+              <div>
+                <p className="text-xs text-gray-500 dark:text-zinc-400">Valor atual</p>
+                <p className="text-lg font-semibold text-gray-800 dark:text-zinc-100">{brl(totalBrl)}</p>
+              </div>
+              <div>
+                <p className="text-xs text-gray-500 dark:text-zinc-400">Resultado</p>
+                <p
+                  className={`text-lg font-semibold ${
+                    resultBrl >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'
+                  }`}
+                >
+                  {resultBrl >= 0 ? '+' : ''}
+                  {brl(resultBrl)}
+                  {resultPct !== null && ` (${resultBrl >= 0 ? '+' : ''}${resultPct.toFixed(1)}%)`}
+                </p>
+              </div>
+            </div>
+            <p className="text-xs text-gray-400 dark:text-zinc-500 mt-3">
+              Considera só depósitos/saques feitos depois deste recurso existir — o histórico
+              anterior não tem a cotação daquele momento guardada.
+            </p>
+          </section>
+        )}
 
         {isEmpty ? (
           <EmptyState />
@@ -208,7 +271,9 @@ export default async function DashboardPage() {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-100 dark:divide-zinc-800">
-                        {movements.map((m) => (
+                        {movements.map((m) => {
+                          const perf = depositPerformance(m, priceMap);
+                          return (
                           <tr key={m._id}>
                             <td className="px-4 py-3">
                               {m.kind === 'deposit' ? (
@@ -233,6 +298,24 @@ export default async function DashboardPage() {
                                   ? `${num(Number(m.amount))} ${m.coin} → ${num(Number(m.amountTo))} ${m.toCoin}`
                                   : `${m.kind === 'deposit' ? '+' : '−'}${num(Number(m.amount))} ${m.coin}`}
                               </div>
+                              {(m.kind === 'deposit' || m.kind === 'withdraw') && m.valueBrl != null && (
+                                <div className="text-xs font-normal text-gray-400 dark:text-zinc-500 mt-0.5">
+                                  {brl(m.valueBrl)} no momento
+                                  {perf?.deltaPct != null && (
+                                    <span
+                                      className={
+                                        perf.deltaPct >= 0
+                                          ? 'text-emerald-600 dark:text-emerald-400'
+                                          : 'text-red-600 dark:text-red-400'
+                                      }
+                                    >
+                                      {' '}
+                                      · hoje {brl(perf.todayValueBrl)} ({perf.deltaPct >= 0 ? '+' : ''}
+                                      {perf.deltaPct.toFixed(1)}%)
+                                    </span>
+                                  )}
+                                </div>
+                              )}
                               {m.fileUrl && (
                                 <a
                                   href={m.fileUrl}
@@ -251,7 +334,8 @@ export default async function DashboardPage() {
                               {dateTime(m.timestamp)}
                             </td>
                           </tr>
-                        ))}
+                          );
+                        })}
                       </tbody>
                     </table>
                   </div>

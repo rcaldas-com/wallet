@@ -13,11 +13,13 @@ import {
   getUserName,
   getPendingWithdrawTotal,
   cancelWithdrawRequest,
+  listIssuerKeys,
 } from '@/app/lib/data-wallet';
 import { sendWithdrawRequestEmail, sendWithdrawProcessedEmail } from '@/app/lib/email';
 import { uploadReceiptFile } from '@/app/lib/file-upload';
 import { getCoinDisplayName } from '@/app/lib/coin-catalog';
 import { getPriceStatus } from '@/app/lib/price-monitor';
+import { getBrlPrice } from '@/app/lib/quotes';
 
 export type WithdrawState = {
   success: boolean;
@@ -100,7 +102,19 @@ export async function requestWithdraw(
     }
   }
 
-  await recordWithdrawRequest({ userId: user._id, amount, coin, destination, desc });
+  // Mesmo raciocínio do depósito: valor em BRL no momento do pedido,
+  // guardado como fato histórico (best-effort, null se a cotação falhar).
+  let valueBrl: number | null = null;
+  try {
+    const issuers = await listIssuerKeys();
+    const issuer = issuers.find((i) => i.name === coin)?.publicKey;
+    const price = await getBrlPrice(coin, issuer);
+    valueBrl = price === null ? null : Number(amount) * price;
+  } catch (err) {
+    console.error('Falha ao cotar valor do saque em BRL:', err);
+  }
+
+  await recordWithdrawRequest({ userId: user._id, amount, coin, destination, desc, valueBrl });
 
   // Notifica os administradores (best-effort).
   try {
