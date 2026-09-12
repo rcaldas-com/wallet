@@ -68,20 +68,21 @@ Auth: header `x-internal-secret` must match `INTERNAL_TICK_SECRET`
 accepting unauthenticated requests — this is deliberate, not a bug to
 "fix" by relaxing it.
 
-**Who calls this, and how often, is intentionally NOT decided in this
-repo.** It's cross-cutting infra (the same "something needs to run on a
-schedule, not tied to user traffic" problem as the fleet's host-down
-sweep in `web/lib/monitor.ts`), so the trigger belongs in that project's
-monitor system, not bolted onto wallet as a one-off. See
-`monitor/MONITOR.md` at the root of the `rcaldas` (dev) repo for that
-system's current shape — as of this writing it already solved the exact
-same class of problem for host-down detection by piggybacking on
-existing heartbeat traffic with a Redis `NX` lock
-(`sweepOfflineHostsThrottled`/`OFFLINE_SWEEP_LOCK`) instead of a
-dedicated poller service (a dedicated `monitor-worker` container was
-tried for that and removed — reimplemented worse what
-`upsertIncident`/`resolveIncident` already did). Recommended interval:
-~5 minutes.
+**Who calls this** was deliberately left to the monitor system in the
+base `rcaldas` (dev) repo rather than decided here — see
+`monitor/MONITOR.md`. Resolved: `web` calls it over the **internal
+Docker network** (`http://wallet:3000/api/internal/tick`), piggybacked
+on the fleet's existing heartbeat traffic with a Redis lock, mirroring
+`sweepOfflineHostsThrottled`/`OFFLINE_SWEEP_LOCK` in `web/lib/monitor.ts`
+— no new service, no public-URL round trip. That also means the secret
+never leaves the Docker network and the call isn't subject to
+Cloudflare's edge (no WAF/proxy hop, no 100s timeout to worry about).
+
+Gotcha for later: the internal call works unprefixed only because
+`basePath: '/wallet'` in `next.config.js` is dev-only (production has no
+basePath). Hitting this from something running in the *local* compose
+stack (container-to-container, not through `localhost:8001`) would need
+`http://wallet:3000/wallet/api/internal/tick` instead.
 
 ## Deposit/withdraw value at time of movement (`valueBrl`)
 
