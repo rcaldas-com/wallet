@@ -70,8 +70,15 @@ async function fetchBrlPrice(coin: string): Promise<number | null> {
     priceCache.set(coin, { price: effective, at: Date.now() });
     negativePriceCache.delete(coin);
     return effective;
-  } catch (err) {
-    console.error(`Falha ao obter cotação ${coin}/BRL:`, err);
+  } catch {
+    // Silencioso de propósito: muita moeda (qualquer token só líquido na DEX
+    // da Stellar, ex. AQUA) nunca vai aparecer no ccxt, e isso é normal —
+    // getBrlPrice tenta o fallback via Stellar em seguida e só loga de
+    // verdade (lá embaixo) se TODAS as fontes falharem. Logar aqui
+    // incondicionalmente foi o que gerou log sustentado o suficiente pra
+    // abrir incidente de monitoramento sozinho, mesmo quando o fallback
+    // resolvia a cotação igual (visto em produção: AQUA sempre resolvia via
+    // Stellar, e mesmo assim cada tentativa de ccxt gerava uma linha de erro).
     negativePriceCache.set(coin, Date.now());
     // Falha transitória de rede/serviço: mantém servindo o último preço em
     // cache (mesmo expirado) em vez de propagar "sem cotação" por uma falha
@@ -79,6 +86,11 @@ async function fetchBrlPrice(coin: string): Promise<number | null> {
     return cached?.price ?? null;
   }
 }
+
+// Debounce do log de falha FINAL (nenhuma fonte resolveu) — mesmo raciocínio
+// do cache negativo acima, um nível acima: sem isso, uma moeda genuinamente
+// sem preço em lugar nenhum voltaria a logar a cada chamada.
+const unresolvedLoggedAt = new Map<string, number>();
 
 // Preço de 1 unidade em BRL, ou null quando não há cotação disponível.
 // `issuer`, quando informado, habilita um fallback via a própria rede Stellar
@@ -101,15 +113,28 @@ async function fetchBrlPrice(coin: string): Promise<number | null> {
 export const getBrlPrice = cache(async (coin: string, issuer?: string): Promise<number | null> => {
   coin = PRICE_ALIAS[coin] ?? coin;
   if (coin === BASE_COIN) return 1;
+
   const direct = await fetchBrlPrice(coin);
   if (direct !== null) return direct;
-  if (!issuer) return null;
 
-  const priceInXlm = await getStellarPathPriceInXlm(coin, issuer);
-  if (priceInXlm === null) return null;
-  const xlmBrl = await fetchBrlPrice('XLM');
-  if (xlmBrl === null) return null;
-  return priceInXlm * xlmBrl;
+  if (issuer) {
+    const priceInXlm = await getStellarPathPriceInXlm(coin, issuer);
+    if (priceInXlm !== null) {
+      const xlmBrl = await fetchBrlPrice('XLM');
+      if (xlmBrl !== null) return priceInXlm * xlmBrl;
+    }
+  }
+
+  // Só chega aqui se NENHUMA fonte resolveu (nem ccxt, nem o fallback via
+  // Stellar quando havia issuer) — isso sim é falha real de cotação, ao
+  // contrário de só o ccxt falhar (silencioso em fetchBrlPrice, porque tem
+  // fallback pra tentar). Debounce pra não repetir a cada chamada.
+  const loggedAt = unresolvedLoggedAt.get(coin);
+  if (!loggedAt || Date.now() - loggedAt >= NEGATIVE_PRICE_TTL_MS) {
+    console.error(`Sem cotação disponível para ${coin}/BRL (ccxt e fallback Stellar, se houver, esgotados)`);
+    unresolvedLoggedAt.set(coin, Date.now());
+  }
+  return null;
 });
 
 // Valor em BRL de `amount` unidades de `coin`. Moeda sem cotação vale 0 —
