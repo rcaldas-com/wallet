@@ -85,11 +85,17 @@ export type Movement = {
   // Só preenchidos quando kind === 'conversion' (moeda/valor recebidos).
   toCoin?: string | null;
   amountTo?: string | null;
-  // Valor em BRL no momento do depósito/saque (cotação de referência da
-  // hora) — null em registros anteriores a este campo existir, nunca
-  // recalculado depois. É o que permite comparar "quanto valia" com
-  // "quanto vale hoje" no histórico.
+  // Valor em BRL no momento do depósito/saque/conversão (cotação de
+  // referência da hora) — null em registros anteriores a este campo
+  // existir, nunca recalculado depois. É o que permite comparar "quanto
+  // valia" com "quanto vale hoje" no histórico.
   valueBrl?: number | null;
+  // Só em conversões: resultado gravado no momento da troca, sobre a moeda
+  // que saiu (custo médio da posição x o que ela valia ali). `positionClosed`
+  // = a troca zerou o saldo dela (operação encerrada) em vez de reduzir.
+  costBasisBrl?: number | null;
+  realizedBrl?: number | null;
+  positionClosed?: boolean | null;
 };
 
 // Usuário exibido no seletor do admin.

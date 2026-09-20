@@ -84,6 +84,48 @@ basePath). Hitting this from something running in the *local* compose
 stack (container-to-container, not through `localhost:8001`) would need
 `http://wallet:3000/wallet/api/internal/tick` instead.
 
+## Positions / "operations" (`app/lib/positions.ts`)
+
+An *operation* is the life of a position in one coin: opens on the first
+entry, grows with later entries at **weighted average cost** (one position
+per coin — merged on purpose, not separate lots), closes when the balance
+hits zero. Decided with the user: separate lots need a lot-selection rule
+(FIFO...) for every partial exit, and the on-chain balance is fungible
+anyway; the individual entries stay visible in the history with their own
+value at the time, so per-purchase performance isn't lost, only not
+accounted separately. Average cost is also the usual method for crypto
+in Brazilian IR (confirm with an accountant before relying on it for a
+filing).
+
+- **Derived by replaying the full ledger** (`getUserLedger` in
+  `data-wallet.ts` — NOT `getUserMovements`, which is capped at 100), pure
+  and DB-free so it's unit-testable. Single source of truth: no position
+  collection to drift.
+- BRL is the base currency: no position, no result. A conversion with a BRL
+  leg needs no stored value (BRL->X cost exactly `amountFrom`; X->BRL
+  proceeds exactly `amountTo`) — this is how legacy conversions get a cost
+  without any write.
+- Any entry without a known value makes that position's cost `null` until it
+  zeroes and reopens; an exit larger than the ledger knew about also yields
+  `null`. **Unknown is shown as nothing, never as a guessed number.**
+- `requestConversion` computes the close of the outgoing coin *before*
+  executing (ledger doesn't have the swap yet) and stores `valueBrl`,
+  `costBasisBrl`, `realizedBrl`, `positionClosed` on the `conversion` doc
+  (facts at the time, like `valueBrl` on deposits). `valueBrl` on the
+  conversion is also the incoming coin's cost — required when neither leg
+  is BRL. Completed withdrawals reduce the position (proportional cost) but
+  don't record a realized result yet.
+- The coin card shows cost/result only when the replayed quantity matches
+  the custodial balance (tolerance 1e-6); incomplete history => hidden.
+
+**Manual backfills done in production** (no code path re-creates them; all
+tagged `valueBrlSource` so they're distinguishable from recorded quotes):
+Laura Guimaraes' 3 legacy deposits (BRL 100 -> R$100, EUR 8.498 -> R$50,
+PAXG 0.004412 -> R$100) on 2026-09-20. Her BTC/XLM cost (R$50 each) comes
+from BRL conversions, not deposits — do NOT add fake deposits for them
+(would double count the BRL 100 deposit). Other users' legacy deposits
+still have `valueBrl: null` and only the admin knows their real amounts.
+
 ## Deposit/withdraw value at time of movement (`valueBrl`)
 
 `deposit` and `withdraw` docs now carry a `valueBrl` field — the BRL

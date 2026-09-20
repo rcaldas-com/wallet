@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation';
 import { getCurrentUser, canUseWallet, hasRole } from '@/app/lib/auth';
-import { getUserMovements, listIssuerKeys } from '@/app/lib/data-wallet';
+import { getUserLedger, getUserMovements, listIssuerKeys } from '@/app/lib/data-wallet';
+import { computePositions } from '@/app/lib/positions';
 import { listWalletsForReading, readWallets } from '@/app/lib/wallets';
 import type { RawBalance } from '@/app/lib/stellar';
 import { valueBalancesInBrl, getBrlPrice } from '@/app/lib/quotes';
@@ -30,7 +31,7 @@ function depositPerformance(
   m: Movement,
   priceMap: Record<string, number>,
 ): { todayValueBrl: number; deltaPct: number | null } | null {
-  if (m.kind !== 'deposit' || m.valueBrl == null) return null;
+  if (m.kind !== 'deposit' || m.valueBrl == null || m.coin === 'BRL') return null;
   const price = priceMap[m.coin];
   if (price == null) return null;
   const todayValueBrl = Number(m.amount) * price;
@@ -129,6 +130,27 @@ export default async function DashboardPage() {
     if (price !== null) priceMap[symbol] = price;
   }
 
+  // Posição (custo médio) de cada moeda, derivada do histórico completo. Só
+  // é mostrada no card quando bate com o saldo custodiado — se o histórico
+  // estiver incompleto (movimento antigo que não conhecemos), é melhor não
+  // mostrar custo do que mostrar um errado.
+  const ledger = await getUserLedger(user._id);
+  const positions = computePositions(ledger);
+  const positionFor = (coin: string) => {
+    const p = positions.get(coin);
+    const price = priceMap[coin];
+    const custodial = custodialByCoin.get(coin) ?? 0;
+    if (!p || p.qty <= 0 || p.costBrl === null || price == null) return undefined;
+    if (Math.abs(p.qty - custodial) > Math.max(1e-6, custodial * 1e-6)) return undefined;
+    return { costBrl: p.costBrl, valueBrl: p.qty * price, since: p.openedAt ? p.openedAt.toISOString() : null };
+  };
+  // Só conversões gravam resultado realizado (é o fechamento de operação).
+  const realizedEvents = ledger.filter((e) => e.kind === 'conversion' && e.realizedBrl != null);
+  const totalRealizedBrl = realizedEvents.reduce(
+    (s, e) => s + (e.kind === 'conversion' ? (e.realizedBrl ?? 0) : 0),
+    0,
+  );
+
   // Resultado (investido vs. valor atual): só soma o que tem valueBrl
   // registrado (depósitos/saques de antes deste campo existir ficam de
   // fora — não dá pra reconstruir a cotação histórica). Saque só entra
@@ -176,34 +198,55 @@ export default async function DashboardPage() {
           <FinanceArt />
         </section>
 
-        {hasPnlData && (
+        {(hasPnlData || realizedEvents.length > 0) && (
           <section className="rounded-xl border border-gray-100 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
             <div className="flex flex-wrap items-center justify-between gap-4">
-              <div>
-                <p className="text-xs text-gray-500 dark:text-zinc-400">Investido (histórico)</p>
-                <p className="text-lg font-semibold text-gray-800 dark:text-zinc-100">{brl(netContributedBrl)}</p>
-              </div>
-              <div>
-                <p className="text-xs text-gray-500 dark:text-zinc-400">Valor atual</p>
-                <p className="text-lg font-semibold text-gray-800 dark:text-zinc-100">{brl(totalBrl)}</p>
-              </div>
-              <div>
-                <p className="text-xs text-gray-500 dark:text-zinc-400">Resultado</p>
-                <p
-                  className={`text-lg font-semibold ${
-                    resultBrl >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'
-                  }`}
-                >
-                  {resultBrl >= 0 ? '+' : ''}
-                  {brl(resultBrl)}
-                  {resultPct !== null && ` (${resultBrl >= 0 ? '+' : ''}${resultPct.toFixed(1)}%)`}
-                </p>
-              </div>
+              {hasPnlData && (
+                <>
+                  <div>
+                    <p className="text-xs text-gray-500 dark:text-zinc-400">Investido (histórico)</p>
+                    <p className="text-lg font-semibold text-gray-800 dark:text-zinc-100">{brl(netContributedBrl)}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500 dark:text-zinc-400">Valor atual</p>
+                    <p className="text-lg font-semibold text-gray-800 dark:text-zinc-100">{brl(totalBrl)}</p>
+                  </div>
+                </>
+              )}
+              {realizedEvents.length > 0 && (
+                <div>
+                  <p className="text-xs text-gray-500 dark:text-zinc-400">Já realizado</p>
+                  <p
+                    className={`text-lg font-semibold ${
+                      totalRealizedBrl >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'
+                    }`}
+                  >
+                    {totalRealizedBrl >= 0 ? '+' : '−'}
+                    {brl(Math.abs(totalRealizedBrl))}
+                  </p>
+                </div>
+              )}
+              {hasPnlData && (
+                <div>
+                  <p className="text-xs text-gray-500 dark:text-zinc-400">Resultado</p>
+                  <p
+                    className={`text-lg font-semibold ${
+                      resultBrl >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'
+                    }`}
+                  >
+                    {resultBrl >= 0 ? '+' : ''}
+                    {brl(resultBrl)}
+                    {resultPct !== null && ` (${resultBrl >= 0 ? '+' : ''}${resultPct.toFixed(1)}%)`}
+                  </p>
+                </div>
+              )}
             </div>
-            <p className="text-xs text-gray-400 dark:text-zinc-500 mt-3">
-              Considera só depósitos/saques feitos depois deste recurso existir — o histórico
-              anterior não tem a cotação daquele momento guardada.
-            </p>
+            {hasPnlData && (
+              <p className="text-xs text-gray-400 dark:text-zinc-500 mt-3">
+                Considera só depósitos/saques feitos depois deste recurso existir — o histórico
+                anterior não tem a cotação daquele momento guardada.
+              </p>
+            )}
           </section>
         )}
 
@@ -226,6 +269,7 @@ export default async function DashboardPage() {
                       balance={c.balance}
                       valueBrl={c.valueBrl}
                       sources={sourcesByCoin.get(c.coin) ?? []}
+                      position={positionFor(c.coin)}
                     />
                   ))}
                 </div>
@@ -298,6 +342,33 @@ export default async function DashboardPage() {
                                   ? `${num(Number(m.amount))} ${m.coin} → ${num(Number(m.amountTo))} ${m.toCoin}`
                                   : `${m.kind === 'deposit' ? '+' : '−'}${num(Number(m.amount))} ${m.coin}`}
                               </div>
+                              {m.kind === 'conversion' && m.valueBrl != null && (
+                                <div className="text-xs font-normal text-gray-400 dark:text-zinc-500 mt-0.5">
+                                  {brl(m.valueBrl)} no momento
+                                </div>
+                              )}
+                              {m.kind === 'conversion' && m.realizedBrl != null && (
+                                <div
+                                  className={`text-xs font-normal mt-0.5 ${
+                                    m.realizedBrl >= 0
+                                      ? 'text-emerald-600 dark:text-emerald-400'
+                                      : 'text-red-600 dark:text-red-400'
+                                  }`}
+                                >
+                                  {m.positionClosed
+                                    ? `Operação em ${m.coin} encerrada`
+                                    : `Resultado realizado em ${m.coin}`}
+                                  : {m.realizedBrl >= 0 ? '+' : '−'}
+                                  {brl(Math.abs(m.realizedBrl))}
+                                  {m.costBasisBrl != null && m.costBasisBrl > 0 && (
+                                    <>
+                                      {' '}({m.realizedBrl >= 0 ? '+' : '−'}
+                                      {Math.abs((m.realizedBrl / m.costBasisBrl) * 100).toFixed(1)}%)
+                                    </>
+                                  )}
+                                  {m.costBasisBrl != null && <> · custo {brl(m.costBasisBrl)}</>}
+                                </div>
+                              )}
                               {(m.kind === 'deposit' || m.kind === 'withdraw') && m.valueBrl != null && (
                                 <div className="text-xs font-normal text-gray-400 dark:text-zinc-500 mt-0.5">
                                   {brl(m.valueBrl)} no momento

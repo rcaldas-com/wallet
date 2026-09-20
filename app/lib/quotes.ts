@@ -23,18 +23,22 @@ const PRICE_ALIAS: Record<string, string> = { 'XLM nativo': 'XLM' };
 const PRICE_TTL_MS = 30_000;
 const priceCache = new Map<string, { price: number; at: number }>();
 
-// Cache do lado NEGATIVO — sem isso, uma moeda que o ccxt nunca listou (ex.:
-// AQUA, só tem preço via path payment na rede Stellar, ver getBrlPrice)
-// falha em TODA chamada, pra sempre, e cada falha loga erro. Com o
-// auto-refresh batendo a cada 30s isso virou log sustentado o suficiente
-// pra abrir incidente sozinho (visto em produção). Preço "sumido" de um par
-// não muda minuto a minuto — nem numa falha real (outage do ccxt), nem numa
-// ausência permanente (símbolo nunca vai aparecer lá) — então um backoff
-// bem mais longo que o cache positivo é seguro: o pior caso é notar uma
-// exchange voltando ao ar com alguns minutos de atraso, em troca de não
-// martelar (nem logar) uma falha já conhecida a cada 30s.
-const NEGATIVE_PRICE_TTL_MS = 10 * 60_000;
-const negativePriceCache = new Map<string, number>();
+// Backoff do lado NEGATIVO: uma moeda que o ccxt não resolve (AQUA, só tem
+// preço via path payment na Stellar) falharia em TODA chamada, pra sempre —
+// com auto-refresh a cada 30s e o tick agendado, isso é consulta repetida à
+// toa. Mas o 404 do ccxt significa "preço indisponível" nos DOIS casos (moeda
+// não listada OU todas as exchanges falhando por um instante), então não dá
+// pra distinguir pelo status. Por isso o backoff é crescente por falhas
+// CONSECUTIVAS (30s, 1min, 2min... até 10min) e zera no primeiro sucesso: uma
+// falha isolada (ex.: arranque a frio) volta a tentar em 30s, e só quem falha
+// sempre chega no teto. (Uma versão anterior usava 10min fixos já na primeira
+// falha e deixava a moeda "sem preço" por 10min depois de um único soluço.)
+const NEGATIVE_PRICE_MAX_MS = 10 * 60_000;
+const negativePriceCache = new Map<string, { at: number; failures: number }>();
+
+function negativeBackoffMs(failures: number): number {
+  return Math.min(NEGATIVE_PRICE_MAX_MS, PRICE_TTL_MS * 2 ** (failures - 1));
+}
 
 // Busca o preço de 1 unidade de `coin` em BRL via microserviço ccxt, com
 // cache e proteção contra cotação anômala (ver price-monitor.ts — histórico
@@ -48,8 +52,8 @@ async function fetchBrlPrice(coin: string): Promise<number | null> {
     return cached.price;
   }
 
-  const failedAt = negativePriceCache.get(coin);
-  if (failedAt && Date.now() - failedAt < NEGATIVE_PRICE_TTL_MS) {
+  const failed = negativePriceCache.get(coin);
+  if (failed && Date.now() - failed.at < negativeBackoffMs(failed.failures)) {
     return cached?.price ?? null;
   }
 
@@ -79,7 +83,7 @@ async function fetchBrlPrice(coin: string): Promise<number | null> {
     // abrir incidente de monitoramento sozinho, mesmo quando o fallback
     // resolvia a cotação igual (visto em produção: AQUA sempre resolvia via
     // Stellar, e mesmo assim cada tentativa de ccxt gerava uma linha de erro).
-    negativePriceCache.set(coin, Date.now());
+    negativePriceCache.set(coin, { at: Date.now(), failures: (failed?.failures ?? 0) + 1 });
     // Falha transitória de rede/serviço: mantém servindo o último preço em
     // cache (mesmo expirado) em vez de propagar "sem cotação" por uma falha
     // de um único ciclo.
@@ -130,7 +134,7 @@ export const getBrlPrice = cache(async (coin: string, issuer?: string): Promise<
   // contrário de só o ccxt falhar (silencioso em fetchBrlPrice, porque tem
   // fallback pra tentar). Debounce pra não repetir a cada chamada.
   const loggedAt = unresolvedLoggedAt.get(coin);
-  if (!loggedAt || Date.now() - loggedAt >= NEGATIVE_PRICE_TTL_MS) {
+  if (!loggedAt || Date.now() - loggedAt >= NEGATIVE_PRICE_MAX_MS) {
     console.error(`Sem cotação disponível para ${coin}/BRL (ccxt e fallback Stellar, se houver, esgotados)`);
     unresolvedLoggedAt.set(coin, Date.now());
   }

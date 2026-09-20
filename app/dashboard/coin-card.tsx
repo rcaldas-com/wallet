@@ -5,6 +5,10 @@ import { walletTypeLabel } from '@/app/lib/wallet-labels';
 
 export type CoinSource = { type: string; key: string; balance: number };
 
+// Posição em aberto na moeda (custo médio no app x quanto vale agora) — só
+// vem preenchida quando o histórico bate com o saldo custodiado.
+export type CoinPosition = { costBrl: number; valueBrl: number; since: string | null };
+
 const num = (v: number) => v.toLocaleString('pt-BR', { maximumFractionDigits: 7 });
 const brl = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
@@ -18,12 +22,14 @@ export default function CoinCard({
   balance,
   valueBrl,
   sources,
+  position,
 }: {
   coin: string;
   displayName: string | null;
   balance: number;
   valueBrl: number;
   sources: CoinSource[];
+  position?: CoinPosition;
 }) {
   const [open, setOpen] = useState(false);
 
@@ -47,6 +53,22 @@ export default function CoinCard({
             )}
           </p>
           <p className="text-gray-500 dark:text-zinc-400 text-sm">{num(balance)}</p>
+          {position && position.costBrl > 0 && (
+            <p
+              className={`text-xs mt-0.5 ${
+                position.valueBrl >= position.costBrl
+                  ? 'text-emerald-600 dark:text-emerald-400'
+                  : 'text-red-600 dark:text-red-400'
+              }`}
+            >
+              Custo {brl(position.costBrl)} ·{' '}
+              {position.valueBrl >= position.costBrl ? '+' : '−'}
+              {brl(Math.abs(position.valueBrl - position.costBrl))} (
+              {position.valueBrl >= position.costBrl ? '+' : '−'}
+              {Math.abs(((position.valueBrl - position.costBrl) / position.costBrl) * 100).toFixed(1)}%)
+              {position.since && ` desde ${new Date(position.since).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', timeZone: 'America/Sao_Paulo' })}`}
+            </p>
+          )}
         </div>
         <p className="text-gray-900 dark:text-zinc-50 font-medium">{brl(valueBrl)}</p>
       </div>

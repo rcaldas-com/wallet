@@ -2,6 +2,7 @@ import 'server-only';
 import { ObjectId } from 'mongodb';
 import clientPromise from './mongodb';
 import { FileAttachment, Movement, PendingWithdraw, UserOption } from './definitions';
+import type { LedgerEvent } from './positions';
 
 // Usuários para o seletor do admin (sem dados sensíveis).
 export async function listUsers(): Promise<UserOption[]> {
@@ -301,6 +302,15 @@ export async function recordConversion(params: {
   amountFrom: string;
   toCoin: string;
   amountTo: string;
+  // Valor em BRL da troca no momento — vira o "recebido" do lado de saída e
+  // o custo da entrada na moeda de destino (sem isso o custo da posição
+  // nova se perde quando nenhum dos lados é BRL).
+  valueBrl?: number | null;
+  // Fechamento (total ou parcial) da posição da moeda que saiu, calculado
+  // antes de executar a troca; null quando não dá pra afirmar o custo.
+  costBasisBrl?: number | null;
+  realizedBrl?: number | null;
+  positionClosed?: boolean | null;
 }): Promise<void> {
   const client = await clientPromise;
   await client.db().collection('conversion').insertOne({
@@ -309,8 +319,58 @@ export async function recordConversion(params: {
     amountFrom: params.amountFrom,
     toCoin: params.toCoin,
     amountTo: params.amountTo,
+    valueBrl: params.valueBrl ?? null,
+    costBasisBrl: params.costBasisBrl ?? null,
+    realizedBrl: params.realizedBrl ?? null,
+    positionClosed: params.positionClosed ?? null,
     timestamp: new Date(),
   });
+}
+
+// Histórico COMPLETO de movimentos que mexem em posição (não o recorte de
+// getUserMovements, que limita a 100 — o custo médio depende de tudo desde a
+// primeira entrada). Saque só conta depois de concluído: enquanto está só
+// 'requested' a moeda ainda está na carteira.
+export async function getUserLedger(userId: string): Promise<LedgerEvent[]> {
+  const client = await clientPromise;
+  const db = client.db();
+  const uid = new ObjectId(userId);
+
+  const [deposits, withdraws, conversions] = await Promise.all([
+    db.collection('deposit').find({ user: uid }, { projection: { coin: 1, amount: 1, valueBrl: 1, timestamp: 1 } }).toArray(),
+    db.collection('withdraw').find({ user: uid, status: 'completed' }, { projection: { coin: 1, amount: 1, valueBrl: 1, timestamp: 1, completedAt: 1 } }).toArray(),
+    db.collection('conversion').find({ user: uid }).toArray(),
+  ]);
+
+  return [
+    ...deposits.map((d): LedgerEvent => ({
+      kind: 'deposit',
+      id: d._id.toString(),
+      at: d.timestamp ?? d._id.getTimestamp(),
+      coin: d.coin,
+      qty: Number(d.amount),
+      valueBrl: (d.valueBrl as number | null | undefined) ?? null,
+    })),
+    ...withdraws.map((w): LedgerEvent => ({
+      kind: 'withdraw',
+      id: w._id.toString(),
+      at: w.completedAt ?? w.timestamp ?? w._id.getTimestamp(),
+      coin: w.coin,
+      qty: Number(w.amount),
+      valueBrl: (w.valueBrl as number | null | undefined) ?? null,
+    })),
+    ...conversions.map((c): LedgerEvent => ({
+      kind: 'conversion',
+      id: c._id.toString(),
+      at: c.timestamp ?? c._id.getTimestamp(),
+      fromCoin: c.fromCoin,
+      qtyFrom: Number(c.amountFrom),
+      toCoin: c.toCoin,
+      qtyTo: Number(c.amountTo),
+      valueBrl: (c.valueBrl as number | null | undefined) ?? null,
+      realizedBrl: (c.realizedBrl as number | null | undefined) ?? null,
+    })),
+  ];
 }
 
 // Chaves públicas de todas as wallets de um usuário (custodiadas + somente leitura).
@@ -380,6 +440,10 @@ export async function getUserMovements(userId: string, limit = 100): Promise<Mov
       timestamp: c.timestamp ?? c._id.getTimestamp(),
       fileUrl: null,
       fileName: null,
+      valueBrl: (c.valueBrl as number | null | undefined) ?? null,
+      costBasisBrl: (c.costBasisBrl as number | null | undefined) ?? null,
+      realizedBrl: (c.realizedBrl as number | null | undefined) ?? null,
+      positionClosed: (c.positionClosed as boolean | null | undefined) ?? null,
     })),
   ];
 
