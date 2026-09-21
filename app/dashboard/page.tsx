@@ -241,12 +241,6 @@ export default async function DashboardPage() {
                 </div>
               )}
             </div>
-            {hasPnlData && (
-              <p className="text-xs text-gray-400 dark:text-zinc-500 mt-3">
-                Considera só depósitos/saques feitos depois deste recurso existir — o histórico
-                anterior não tem a cotação daquele momento guardada.
-              </p>
-            )}
           </section>
         )}
 
