@@ -3,8 +3,9 @@ import { getUserById } from '@/app/lib/data';
 import { verifySessionToken } from '@/app/lib/session';
 import EndImpersonateButton from './end-impersonate-button';
 
-// A impersonation é iniciada no app principal (web); aqui só lemos o mesmo
-// cookie (domínio .rcaldas.com em produção) para mostrar o aviso.
+// A impersonation pode ser iniciada no web ou aqui (visão geral do admin);
+// este componente só lê o cookie compartilhado (domínio .rcaldas.com em
+// produção) para mostrar o aviso.
 export default async function ImpersonateBanner() {
   const cookieStore = await cookies();
   const targetUserId = await verifySessionToken(

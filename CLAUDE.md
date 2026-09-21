@@ -84,6 +84,28 @@ basePath). Hitting this from something running in the *local* compose
 stack (container-to-container, not through `localhost:8001`) would need
 `http://wallet:3000/wallet/api/internal/tick` instead.
 
+## Impersonation ("ver como o usuário")
+
+Eye button per user in the admin overview ("Saldo por usuário"), same
+behavior as the web app: two signed 2h cookies (`impersonate_original_user`
+/ `impersonate_target_user`) on the shared `.rcaldas.com` domain, read by
+both apps; the yellow banner + "Voltar ao admin" end it.
+
+- Start is a **Server Action** (`lib/actions/impersonate.ts`), not a `fetch`
+  to a route: dev serves the wallet under `basePath: /wallet`, so
+  `fetch('/api/impersonate')` would hit the *web* app's route. Only the REAL
+  session (`getRealSessionUserId`) can start it, and it must be admin;
+  refuses self, invalid ids and the master admin (server-side too, since a
+  Server Action is directly callable — web only hides the button).
+- Invariant behind the React `cache()` in `auth.ts`: the start action must
+  never call `getSessionUserId`/`getCurrentUser` before setting the cookies.
+- **Open question, not implemented:** while impersonating, the admin can
+  still run *any* user action as that user — including `requestConversion`,
+  which executes on-chain for the user's custodial funds. Web allows writes
+  too, so this mirrors it, but here it moves real money; a read-only mode
+  (block conversion/withdraw actions while the impersonation cookies are
+  active) would be the safer default.
+
 ## Positions / "operations" (`app/lib/positions.ts`)
 
 An *operation* is the life of a position in one coin: opens on the first

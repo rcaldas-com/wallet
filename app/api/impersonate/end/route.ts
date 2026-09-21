@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server';
 
-// O wallet não inicia impersonation (isso vive no app principal), mas como o
-// cookie é compartilhado por domínio (.rcaldas.com em produção), qualquer um
-// dos dois apps pode encerrá-la.
+// O cookie da impersonation é compartilhado por domínio (.rcaldas.com em
+// produção), então qualquer um dos dois apps pode iniciá-la (aqui:
+// lib/actions/impersonate.ts) e encerrá-la (esta rota).
 export async function POST() {
   try {
     const response = NextResponse.json({ success: true });

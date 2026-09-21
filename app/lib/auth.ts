@@ -24,20 +24,23 @@ export class AuthError extends Error {
 // cache() do React: memoiza por request, não entre requests diferentes. Cada
 // ponto que chama isso na mesma renderização (layout raiz, cada page.tsx
 // embaixo dele) reaproveita o mesmo resultado em vez de reler cookie +
-// reverificar o token do zero. Seguro porque no wallet o único fluxo que troca
-// o cookie de sessão é o logout (clearUserSessionCookie em
-// lib/actions/users.ts), que sempre termina em redirect() — a impersonation é
-// iniciada e encerrada no app web ou via app/api/impersonate/end/route.ts, que
-// devolve uma Response nova; nenhum desses relê a sessão no mesmo request
-// depois de trocar o cookie. Conferido antes de aplicar.
+// reverificar o token do zero. Seguro porque os fluxos que trocam cookie de
+// sessão nunca relêem o usuário EFETIVO depois de trocar: o logout
+// (clearUserSessionCookie em lib/actions/users.ts) sempre termina em
+// redirect(); o fim da impersonation (app/api/impersonate/end/route.ts)
+// devolve uma Response nova; e o início (lib/actions/impersonate.ts) só chama
+// getRealSessionUserId — a sessão real, que ele não altera — e nunca
+// getSessionUserId/getCurrentUser, então o que renderiza depois já enxerga os
+// cookies novos. Quem mexer nesse início e passar a chamar getCurrentUser antes
+// de gravar os cookies quebra essa garantia. Conferido antes de aplicar.
 export const getRealSessionUserId = cache(async (): Promise<string | null> => {
   const cookieStore = await cookies();
   return verifySessionToken(cookieStore.get(SESSION_COOKIE)?.value, 'session');
 });
 
 // Id do usuário "efetivo" — o alvo da impersonation, se houver uma ativa
-// (só vale com os dois tokens válidos; iniciada no app web, compartilhada
-// aqui via cookie de domínio .rcaldas.com); senão, a sessão real.
+// (só vale com os dois tokens válidos; iniciada no web ou no wallet,
+// compartilhada via cookie de domínio .rcaldas.com); senão, a sessão real.
 export const getSessionUserId = cache(async (): Promise<string | null> => {
   const cookieStore = await cookies();
 

@@ -1,10 +1,11 @@
 import { redirect } from 'next/navigation';
-import { getCurrentUser, hasRole } from '@/app/lib/auth';
+import { getCurrentUser, hasRole, MASTER_ADMIN_EMAIL } from '@/app/lib/auth';
 import { buildOverview } from '@/app/lib/overview';
 import { listTrippedCoins } from '@/app/lib/price-monitor';
 import Header from '@/app/components/header';
 import AutoRefresh from '@/app/components/auto-refresh';
 import PriceBreakerPanel from './price-breaker-panel';
+import ImpersonateButton from './impersonate-button';
 
 export const dynamic = 'force-dynamic';
 
@@ -27,6 +28,14 @@ export default async function AdminOverviewPage() {
       <Header user={user} isAdmin active="overview" />
 
       <div className="max-w-5xl mx-auto px-4 py-8 space-y-6">
+        <div>
+          <h2 className="text-2xl font-semibold text-gray-800 dark:text-zinc-100 mb-1">Visão geral</h2>
+          <p className="text-gray-500 dark:text-zinc-400 text-sm">
+            Todos os usuários: saldo real, passivo e exposição por moeda. A sua própria carteira
+            fica em <strong>Início</strong>.
+          </p>
+        </div>
+
         <PriceBreakerPanel items={trippedCoins} />
 
         {o.unpriced.length > 0 && (
@@ -127,16 +136,21 @@ export default async function AdminOverviewPage() {
               {o.users.map((u) => (
                 <div key={u.userId} className="bg-white dark:bg-zinc-900 rounded-xl shadow-sm border border-gray-100 dark:border-zinc-800 p-4">
                   <div className="flex flex-wrap items-baseline justify-between gap-2">
-                    <div>
-                      <p className="font-medium text-gray-800 dark:text-zinc-100">
-                        {u.name}
-                        {u.userId === user._id && (
-                          <span className="ml-2 text-xs bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300 px-1.5 py-0.5 rounded">
-                            você
-                          </span>
-                        )}
-                      </p>
-                      <p className="text-sm text-gray-400 dark:text-zinc-500">{u.email}</p>
+                    <div className="flex items-start gap-1.5">
+                      <div>
+                        <p className="font-medium text-gray-800 dark:text-zinc-100">
+                          {u.name}
+                          {u.userId === user._id && (
+                            <span className="ml-2 text-xs bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300 px-1.5 py-0.5 rounded">
+                              você
+                            </span>
+                          )}
+                        </p>
+                        <p className="text-sm text-gray-400 dark:text-zinc-500">{u.email}</p>
+                      </div>
+                      {u.userId !== user._id && u.email && u.email.toLowerCase() !== MASTER_ADMIN_EMAIL && (
+                        <ImpersonateButton userId={u.userId} userName={u.name} userEmail={u.email} />
+                      )}
                     </div>
                     <div className="text-right">
                       <p className="text-sm text-amber-700 dark:text-amber-400 font-medium">{brl(u.liabilityBrl)}</p>
