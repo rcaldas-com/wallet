@@ -373,22 +373,65 @@ export async function getUserLedger(userId: string): Promise<LedgerEvent[]> {
   ];
 }
 
-// Chaves públicas de todas as wallets de um usuário (custodiadas + somente leitura).
-export async function getUserWalletKeys(userId: string): Promise<
-  { key: string; type: string; readOnly: boolean; label: string | null }[]
-> {
+// Carteiras externas (somente leitura) cadastradas pelo PRÓPRIO usuário —
+// nunca 'main' (custodiada, criada pelo app) nem os tipos de exchange
+// (precisam de secret, cadastro é outro fluxo). São as que aparecem em
+// "Carteiras externas" no dashboard, com botão de remover.
+export type ExternalWallet = { id: string; type: 'stellar' | 'bitcoin'; key: string; label: string | null };
+
+const EXTERNAL_WALLET_TYPES = ['stellar', 'bitcoin'] as const;
+
+export async function listExternalWallets(userId: string): Promise<ExternalWallet[]> {
   const client = await clientPromise;
   const docs = await client
     .db()
     .collection('wallet')
-    .find({ user: new ObjectId(userId) }, { projection: { key: 1, type: 1, readOnly: 1, label: 1 } })
+    .find(
+      { user: new ObjectId(userId), type: { $in: [...EXTERNAL_WALLET_TYPES] } },
+      { projection: { key: 1, type: 1, label: 1 } },
+    )
+    .sort({ _id: 1 })
     .toArray();
   return docs.map((d) => ({
+    id: d._id.toString(),
+    type: d.type as 'stellar' | 'bitcoin',
     key: d.key,
-    type: d.type,
-    readOnly: d.readOnly ?? false,
-    label: d.label ?? null,
+    label: (d.label as string | undefined) ?? null,
   }));
+}
+
+// Cadastra uma carteira externa. Único (índice `key` da coleção `wallet`,
+// unique) — chave já cadastrada (deste ou de outro usuário) rejeita com
+// MongoServerError code 11000, tratado por quem chama.
+export async function addExternalWallet(params: {
+  userId: string;
+  type: 'stellar' | 'bitcoin';
+  key: string;
+  label?: string | null;
+}): Promise<void> {
+  const client = await clientPromise;
+  await client.db().collection('wallet').insertOne({
+    user: new ObjectId(params.userId),
+    type: params.type,
+    key: params.key,
+    label: params.label || null,
+    updated_at: new Date(),
+  });
+}
+
+// Remove uma carteira externa do PRÓPRIO usuário. O filtro por tipo é a
+// última trava contra remover a 'main' por engano (a action já restringe o
+// tipo antes de chegar aqui, mas mantém defesa em profundidade). Retorna
+// true se removeu.
+export async function removeExternalWallet(params: { id: string; userId: string }): Promise<boolean> {
+  if (!ObjectId.isValid(params.id)) return false;
+  const client = await clientPromise;
+  const res = await client.db().collection('wallet').deleteOne({
+    _id: new ObjectId(params.id),
+    user: new ObjectId(params.userId),
+    type: { $in: [...EXTERNAL_WALLET_TYPES] },
+  });
+  return res.deletedCount > 0;
 }
 
 // Histórico de movimentações (depósitos + saques) de um usuário, mais recente primeiro.

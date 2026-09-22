@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation';
 import { getCurrentUser, canUseWallet, hasRole } from '@/app/lib/auth';
-import { getUserLedger, getUserMovements, listIssuerKeys } from '@/app/lib/data-wallet';
+import { getUserLedger, getUserMovements, listExternalWallets, listIssuerKeys } from '@/app/lib/data-wallet';
 import { computePositions } from '@/app/lib/positions';
 import { listWalletsForReading, readWallets } from '@/app/lib/wallets';
 import type { RawBalance } from '@/app/lib/stellar';
@@ -12,6 +12,7 @@ import WithdrawForm from './withdraw-form';
 import ConvertForm from './convert-form';
 import CoinCard, { type CoinSource } from './coin-card';
 import CancelWithdrawButton from './cancel-withdraw-button';
+import ExternalWallets from './external-wallets';
 import Header from '@/app/components/header';
 import AutoRefresh from '@/app/components/auto-refresh';
 
@@ -104,6 +105,7 @@ export default async function DashboardPage() {
     });
 
   const movements = await getUserMovements(user._id);
+  const externalWallets = await listExternalWallets(user._id);
   const isEmpty = coins.length === 0 && movements.length === 0;
 
   // Disjuntor de cotação: avisa se alguma moeda que o usuário tem está com a
@@ -271,18 +273,7 @@ export default async function DashboardPage() {
             </section>
 
             {custodialCoins.length > 0 ? (
-              <>
-                <ConvertForm holdings={custodialCoins} catalog={catalog} priceMap={priceMap} />
-
-                {/* Solicitar saque */}
-                <section className="bg-white dark:bg-zinc-900 rounded-xl shadow-sm border border-gray-100 dark:border-zinc-800 p-5">
-                  <h2 className="text-lg font-semibold text-gray-800 dark:text-zinc-100 mb-1">Solicitar saque</h2>
-                  <p className="text-gray-500 dark:text-zinc-400 text-sm mb-4">
-                    Envie um pedido de saque. Você será avisado quando for processado.
-                  </p>
-                  <WithdrawForm holdings={custodialCoins} catalog={catalog} />
-                </section>
-              </>
+              <ConvertForm holdings={custodialCoins} catalog={catalog} priceMap={priceMap} />
             ) : (
               <section className="rounded-xl border border-gray-200 bg-gray-50 p-5 text-sm text-gray-600 dark:border-zinc-800 dark:bg-zinc-900/50 dark:text-zinc-400">
                 Seus saldos estão em carteiras externas (somente leitura), então não há o que
@@ -407,8 +398,26 @@ export default async function DashboardPage() {
                 </div>
               )}
             </section>
+
+            {custodialCoins.length > 0 && (
+              // Solicitar saque — depois de Movimentações de propósito (reorganização
+              // pedida pelo usuário): é a ação menos frequente do fluxo normal, então
+              // fica após o que se consulta com mais frequência (saldo, histórico).
+              <section className="bg-white dark:bg-zinc-900 rounded-xl shadow-sm border border-gray-100 dark:border-zinc-800 p-5">
+                <h2 className="text-lg font-semibold text-gray-800 dark:text-zinc-100 mb-1">Solicitar saque</h2>
+                <p className="text-gray-500 dark:text-zinc-400 text-sm mb-4">
+                  Envie um pedido de saque. Você será avisado quando for processado.
+                </p>
+                <WithdrawForm holdings={custodialCoins} catalog={catalog} />
+              </section>
+            )}
           </>
         )}
+
+        {/* Depois de Solicitar saque de propósito — igual acima, mas fica visível mesmo
+            sem nenhum saldo/movimentação ainda (isEmpty), pra um usuário novo poder
+            cadastrar a primeira carteira externa antes de ter qualquer coisa aqui. */}
+        <ExternalWallets wallets={externalWallets} />
 
         {pendingWallets.length > 0 && (
           <section className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-200">

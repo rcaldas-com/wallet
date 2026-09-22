@@ -84,6 +84,27 @@ basePath). Hitting this from something running in the *local* compose
 stack (container-to-container, not through `localhost:8001`) would need
 `http://wallet:3000/wallet/api/internal/tick` instead.
 
+## Carteiras externas (`app/lib/actions/external-wallet.ts`)
+
+Self-service para o próprio usuário cadastrar um endereço somente-leitura
+(Stellar ou Bitcoin) — antes só existia via edição direta no Mongo (o
+"Still pending" original deste arquivo). Painel na página inicial
+(`external-wallets.tsx`), sempre visível mesmo sem saldo nenhum ainda.
+
+- Nunca pede secret — por natureza, só pode ler.
+- Validação em duas camadas: formato (regex/`StrKey`, rejeita na hora,
+  sem round-trip) e uma sondagem ao vivo (lê o saldo de verdade) que é
+  best-effort — nunca bloqueia o cadastro, só avisa (conta Stellar sem
+  saldo ainda, ou fonte de BTC instável no momento).
+- Duplicata é pego pelo índice único em `key` na coleção `wallet` (já
+  existia, cobre a base inteira, não só por usuário) — código 11000
+  vira mensagem amigável.
+- Remoção é escopada por `{_id, user, type: {$in:['stellar','bitcoin']}}`
+  — nunca a `main` custodiada nem outro tipo, nunca outro usuário.
+- `listExternalWallets`/`addExternalWallet`/`removeExternalWallet` em
+  `data-wallet.ts` reaproveitam o que já era `getUserWalletKeys` (existia,
+  nunca foi chamado por ninguém — escrito em antecipação a isto).
+
 ## Impersonation ("ver como o usuário")
 
 Eye button per user in the admin overview ("Saldo por usuário"), same
