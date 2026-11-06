@@ -2,7 +2,27 @@ import { S3Client } from '@aws-sdk/client-s3';
 
 // Configuração de ambiente
 export const isProduction = process.env.NODE_ENV === 'production';
-export const isLocalMinIO = process.env.S3_HOST?.includes('minio');
+// Hostnames que so' existem dentro da rede docker/host local e nunca sao
+// alcancaveis pelo navegador (servico do compose como "garage", localhost,
+// host.docker.internal, IP privado). Antes isto checava a palavra 'minio'
+// em S3_HOST -- quebrou com a troca do MinIO pelo Garage no dev, e o car ja
+// tinha o mesmo bug corrigido (ver car/app/lib/s3-config.ts).
+const isNonPublicHostname = (hostname: string): boolean => {
+  if (['localhost', '127.0.0.1', 'host.docker.internal'].includes(hostname)) return true;
+  if (/^(10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.|169\.254\.)/.test(hostname)) return true;
+  // sem ponto = nome de servico docker-compose (ex: "garage")
+  if (!hostname.includes('.')) return true;
+  return false;
+};
+
+export const isLocalMinIO = (() => {
+  if (!process.env.S3_HOST) return false;
+  try {
+    return isNonPublicHostname(new URL(process.env.S3_HOST).hostname);
+  } catch {
+    return false;
+  }
+})();
 export const hasCustomEndpoint = !!process.env.S3_HOST;
 
 // Configuração base do S3
@@ -16,7 +36,7 @@ export const getS3Config = () => {
   };
 
   if (process.env.S3_HOST) {
-    // Usa endpoint customizado (MinIO, Storj, outros S3-compatible)
+    // Usa endpoint customizado (Garage em dev, Storj em producao, outros S3)
     return {
       ...baseConfig,
       endpoint: process.env.S3_HOST,
@@ -41,9 +61,13 @@ export const getExternalS3Config = (requestHost?: string) => {
   if (isLocalMinIO && !isProduction) {
     // Desenvolvimento local: usar host da requisição se disponível, senão localhost
     const host = requestHost ? requestHost.split(':')[0] : 'localhost';
+    // Troca so' o hostname (mantem esquema e porta). O replace('minio', ...)
+    // de antes so' funcionava se o host contivesse essa palavra.
+    const externalUrl = new URL(process.env.S3_HOST!);
+    externalUrl.hostname = host;
     return {
       ...baseConfig,
-      endpoint: process.env.S3_HOST?.replace('minio', host),
+      endpoint: externalUrl.toString().replace(/\/$/, ''),
     };
   }
 
