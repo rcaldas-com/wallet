@@ -17,6 +17,7 @@ import {
 } from '@/app/lib/data-wallet';
 import { sendWithdrawRequestEmail, sendWithdrawProcessedEmail } from '@/app/lib/email';
 import { uploadReceiptFile } from '@/app/lib/file-upload';
+import { signedFileUrl } from '@/app/lib/file-link';
 import { getCoinDisplayName } from '@/app/lib/coin-catalog';
 import { getPriceStatus } from '@/app/lib/price-monitor';
 import { getBrlPrice } from '@/app/lib/quotes';
@@ -222,7 +223,8 @@ export async function confirmWithdraw(
         destination: doc.destination || '',
         txHash: result.hash,
         proof,
-        proofFileUrl: proofFile?.url,
+        // Link assinado: abre sem login (o email cai num navegador sem sessão).
+        proofFileUrl: proofFile ? signedFileUrl(proofFile) : undefined,
       });
     }
   } catch (err) {

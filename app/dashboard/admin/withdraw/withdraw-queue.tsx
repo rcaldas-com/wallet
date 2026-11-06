@@ -4,6 +4,10 @@ import { useActionState, useCallback, useEffect, useState } from 'react';
 import { confirmWithdraw, declineWithdraw, type WithdrawState } from '@/app/lib/actions/withdraw';
 import type { PendingWithdraw } from '@/app/lib/definitions';
 import Spinner from '@/app/components/spinner';
+import { catchActionFailure, receiptTooLarge, submitKeepingFields } from '@/app/lib/form-submit';
+
+const confirmWithdrawAction = catchActionFailure(confirmWithdraw);
+const declineWithdrawAction = catchActionFailure(declineWithdraw);
 
 type Toast = { id: number; message: string; success: boolean };
 type PushToast = (message: string, success: boolean) => void;
@@ -53,8 +57,8 @@ export default function WithdrawQueue({ items }: { items: PendingWithdraw[] }) {
 
 function WithdrawRow({ item, onResult }: { item: PendingWithdraw; onResult: PushToast }) {
   const [mode, setMode] = useState<'idle' | 'confirm' | 'decline'>('idle');
-  const [confirmState, confirmAction, confirming] = useActionState(confirmWithdraw, initialState);
-  const [declineState, declineAction, declining] = useActionState(declineWithdraw, initialState);
+  const [confirmState, confirmAction, confirming] = useActionState(confirmWithdrawAction, initialState);
+  const [declineState, declineAction, declining] = useActionState(declineWithdrawAction, initialState);
 
   useEffect(() => {
     if (confirmState.message) {
@@ -117,15 +121,21 @@ function WithdrawRow({ item, onResult }: { item: PendingWithdraw; onResult: Push
 
       {mode === 'confirm' && (
         <form
-          action={confirmAction}
           onSubmit={(e) => {
+            e.preventDefault();
+            if (busy) return;
+            const tooLarge = receiptTooLarge(new FormData(e.currentTarget), 'proofFile');
+            if (tooLarge) {
+              onResult(tooLarge, false);
+              return;
+            }
             if (
-              !confirm(
+              confirm(
                 `Confirmar o saque de ${num(item.amount)} ${item.coin} de ${item.userName}?\n\n` +
                   `O token volta para o issuer na rede Stellar. Esta operação é irreversível.`,
               )
             ) {
-              e.preventDefault();
+              submitKeepingFields(e, confirmAction);
             }
           }}
           className="mt-4 border-t border-gray-100 dark:border-zinc-800 pt-4 space-y-3"
@@ -174,7 +184,12 @@ function WithdrawRow({ item, onResult }: { item: PendingWithdraw; onResult: Push
       )}
 
       {mode === 'decline' && (
-        <form action={declineAction} className="mt-4 border-t border-gray-100 dark:border-zinc-800 pt-4 space-y-3">
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (!busy) submitKeepingFields(e, declineAction);
+          }}
+          className="mt-4 border-t border-gray-100 dark:border-zinc-800 pt-4 space-y-3">
           <input type="hidden" name="id" value={item._id} />
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-zinc-300 mb-1">Motivo da recusa</label>

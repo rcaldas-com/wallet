@@ -3,8 +3,9 @@ import { processImage } from './image-processor';
 import { uploadToS3 } from './s3';
 import { sanitizeFilenameForKey } from './utils';
 import type { FileAttachment } from './definitions';
+import { MAX_RECEIPT_BYTES } from './form-submit';
 
-const MAX_FILE_SIZE = 64 * 1024 * 1024; // 64MB, mesmo limite do car/web
+const MAX_FILE_SIZE = MAX_RECEIPT_BYTES; // 64MB, mesmo limite do car/web
 const ACCEPTED_TYPE = /^image\/|^application\/pdf$/;
 // URL pública do próprio wallet (ver middleware.ts / next.config.js) — usada
 // pra montar o link do proxy de arquivos, não a URL direta do bucket (o

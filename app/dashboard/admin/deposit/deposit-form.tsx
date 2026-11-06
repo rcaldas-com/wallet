@@ -1,10 +1,13 @@
 'use client';
 
-import { useActionState, useEffect, useRef, useState } from 'react';
+import { useActionState, useCallback, useEffect, useRef, useState } from 'react';
 import { createDeposit, type DepositState } from '@/app/lib/actions/deposit';
 import type { UserOption } from '@/app/lib/definitions';
 import type { CoinCatalogEntry } from '@/app/lib/coin-catalog';
 import Spinner from '@/app/components/spinner';
+import { catchActionFailure, receiptTooLarge, submitKeepingFields } from '@/app/lib/form-submit';
+
+const depositAction = catchActionFailure(createDeposit);
 
 type Toast = { id: number; message: string; success: boolean };
 
@@ -21,24 +24,25 @@ export default function DepositForm({
   users: UserOption[];
   catalog: { priority: CoinCatalogEntry[]; others: CoinCatalogEntry[] };
 }) {
-  const [state, formAction, isPending] = useActionState(createDeposit, initialState);
+  const [state, formAction, isPending] = useActionState(depositAction, initialState);
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [selectedUser, setSelectedUser] = useState('');
   const [coin, setCoin] = useState(catalog.priority[0]?.symbol || catalog.others[0]?.symbol || '');
   const [amount, setAmount] = useState('');
   const formRef = useRef<HTMLFormElement>(null);
 
+  // Toast fixo; erro fica mais tempo (pode ter instrução, ex.: conferir o
+  // histórico antes de reenviar).
+  const pushToast = useCallback((message: string, success: boolean) => {
+    const id = Date.now() + Math.random();
+    setToasts((prev) => [...prev, { id, message, success }]);
+    setTimeout(() => setToasts((prev) => prev.filter((t) => t.id !== id)), success ? 6000 : 12000);
+  }, []);
+
   // Empurra cada resultado da action para a lista de toasts fixos.
   useEffect(() => {
-    if (state.message) {
-      const id = Date.now();
-      setToasts((prev) => [...prev, { id, message: state.message, success: state.success }]);
-      const timer = setTimeout(() => {
-        setToasts((prev) => prev.filter((t) => t.id !== id));
-      }, 6000);
-      return () => clearTimeout(timer);
-    }
-  }, [state]);
+    if (state.message) pushToast(state.message, state.success);
+  }, [state, pushToast]);
 
   // Limpa o formulário depois de um depósito bem-sucedido — sem isso, os
   // dados do depósito que acabou de acontecer ficavam nos campos, arriscando
@@ -55,19 +59,23 @@ export default function DepositForm({
   const selectedUserName = users.find((u) => u._id === selectedUser)?.name;
 
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
-    if (!selectedUser || !coin || !amount) return;
+    e.preventDefault();
+    if (isPending || !selectedUser || !coin || !amount) return;
+    const tooLarge = receiptTooLarge(new FormData(e.currentTarget), 'receiptFile');
+    if (tooLarge) {
+      pushToast(tooLarge, false);
+      return;
+    }
     const ok = confirm(
       `Confirmar depósito de ${amount} ${coin} para ${selectedUserName || 'usuário'}?\n\n` +
         `Esta operação envia o token na rede Stellar e é irreversível.`,
     );
-    if (!ok) {
-      e.preventDefault();
-    }
+    if (ok) submitKeepingFields(e, formAction);
   }
 
   return (
     <>
-      <form ref={formRef} action={formAction} onSubmit={handleSubmit} className="space-y-4">
+      <form ref={formRef} onSubmit={handleSubmit} className="space-y-4">
         <div>
           <label htmlFor="userId" className="block text-sm font-medium text-gray-700 dark:text-zinc-300 mb-1">
             Usuário

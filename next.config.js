@@ -8,7 +8,9 @@ const nextConfig = {
   serverExternalPackages: ['@stellar/stellar-sdk'],
   experimental: {
     serverActions: {
-      bodySizeLimit: '10mb',
+      // Igual a MAX_RECEIPT_BYTES (lib/form-submit.ts) e ao car. Com 10mb, o
+      // limite de 64MB do comprovante nunca chegava a valer.
+      bodySizeLimit: '64mb',
     },
   },
 };

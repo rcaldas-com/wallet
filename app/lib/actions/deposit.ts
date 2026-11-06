@@ -9,6 +9,7 @@ import { valueBalancesInBrl, getBrlPrice } from '@/app/lib/quotes';
 import { recordDeposit, getUserName, listIssuerKeys } from '@/app/lib/data-wallet';
 import { sendDepositEmail } from '@/app/lib/email';
 import { uploadReceiptFile } from '@/app/lib/file-upload';
+import { signedFileUrl } from '@/app/lib/file-link';
 import { getCoinDisplayName } from '@/app/lib/coin-catalog';
 
 export type DepositState = {
@@ -113,7 +114,8 @@ export async function createDeposit(
         coinName,
         totalBrl,
         desc,
-        receiptUrl: receiptFile?.url,
+        // Link assinado: abre sem login (o email cai num navegador sem sessão).
+        receiptUrl: receiptFile ? signedFileUrl(receiptFile) : undefined,
       });
     }
   } catch (err) {

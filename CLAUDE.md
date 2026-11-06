@@ -105,6 +105,34 @@ Self-service para o próprio usuário cadastrar um endereço somente-leitura
   `data-wallet.ts` reaproveitam o que já era `getUserWalletKeys` (existia,
   nunca foi chamado por ninguém — escrito em antecipação a isto).
 
+## Comprovantes (`/api/files/[...path]`)
+
+Proxy autenticado pro S3 (o Storj não serve objeto público). O matcher do
+`middleware.ts` ignora `/api`, então **toda a autorização está na rota** —
+até 11/2026 ela não tinha nenhuma e servia qualquer bucket das credenciais
+do `.env` compartilhado (incluindo os do car).
+
+- Só o bucket `wallet`; qualquer outro é 404.
+- **Link do email abre sem login** (decisão do usuário: quem recebe o link é
+  o próprio dono; se vazar, foi ele que mandou). É o mesmo caminho com
+  `?t=<HMAC da chave>` (`lib/file-link.ts`, `signedFileUrl`), gerado só na
+  hora de montar o email. A URL gravada no Mongo e usada no app não tem `t`.
+- Sem `t` válido: sem sessão → redirect pro login com `callbackUrl` (emails
+  antigos, sem `t`, caem aqui e abrem pro dono depois do login); admin vê
+  tudo; senão só o dono — depósito pelo `userId` embutido na chave (zero
+  consulta), saque pelo id do pedido na chave (um `findOne` por `_id`).
+  Não-dono recebe 404, não 403.
+- `Cache-Control: private` — nunca em cache da Cloudflare. Stream com
+  Range/ETag, SVG vai como download (`attachment`), `nosniff`.
+- Trocar `AUTH_SECRET` invalida os `t` dos emails já enviados (caem no login).
+
+Formulários de depósito e de saque (`lib/form-submit.ts`): falha de
+transporte vira mensagem no formulário (não a tela de erro) e os campos não
+são limpos em erro. **Sem rascunho em IndexedDB de propósito**, ao contrário
+do car: depósito/saque executam on-chain antes de responder, então uma falha
+sem resposta pode ter executado — restaurar o formulário pronto pra reenviar
+facilitaria depósito em dobro. A mensagem manda conferir o histórico antes.
+
 ## Impersonation ("ver como o usuário")
 
 Eye button per user in the admin overview ("Saldo por usuário"), same
